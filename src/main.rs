@@ -1,4 +1,4 @@
-//#![no_std]
+/*//#![no_std]
 
 use oscore::edhoc::{
     error::{OwnError, OwnOrPeerError},
@@ -6,9 +6,9 @@ use oscore::edhoc::{
 };
 use rand::{rngs::StdRng, Rng,SeedableRng};
 
-use x25519_dalek::{PublicKey,StaticSecret};
+use x25519_dalek_ng::{PublicKey,StaticSecret};
 
-use rand_core::{OsRng,};
+use rand_core::OsRng;
 
 
 const SUITE_I: isize = 3;
@@ -258,3 +258,4 @@ fn hexstring(slice: &[u8]) -> String {
             .collect::<Vec<String>>()
             .join(", 0x")
 }
+*/

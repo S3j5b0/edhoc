@@ -1,5 +1,5 @@
 use aes::Aes128;
-use x25519_dalek::{PublicKey};
+use x25519_dalek_ng::{PublicKey};
 
 use alloc::{string::String, vec::Vec};
 use ccm::{

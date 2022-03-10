@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use core::result::Result;
-use x25519_dalek::{PublicKey, SharedSecret, StaticSecret};
+use x25519_dalek_ng::{PublicKey, SharedSecret, StaticSecret};
 use super::{
     cose,
     error::{EarlyError, Error, OwnError, OwnOrPeerError},
@@ -137,7 +137,7 @@ impl PartyI<Msg2Receiver> {
         // Constructing shared secret for initiator 
         let mut x_r_bytes = [0; 32];
         x_r_bytes.copy_from_slice(&msg_2.ephemeral_key_r[..32]);
-        let r_public = x25519_dalek::PublicKey::from(x_r_bytes);
+        let r_public = x25519_dalek_ng::PublicKey::from(x_r_bytes);
 
 
        let shared_secret_0 = self.0.i_ecdh_ephemeralsecret.diffie_hellman(&r_public);
@@ -215,7 +215,7 @@ impl PartyI<Msg2Verifier> {
         // Generating static public key of initiator
         let mut statkey_r_bytes = [0; 32];
         statkey_r_bytes.copy_from_slice(&r_public_static_bytes[..32]);
-        let r_public_static = x25519_dalek::PublicKey::from(statkey_r_bytes);
+        let r_public_static = x25519_dalek_ng::PublicKey::from(statkey_r_bytes);
 
         // Generating shared secret 1 for initiator
 
@@ -495,7 +495,7 @@ impl PartyR<Msg1Receiver> {
         // Use U's public key to generate the ephemeral shared secret
         let mut x_i_bytes = [0; 32];
         x_i_bytes.copy_from_slice(&msg_1.x_i[..32]);
-        let i_public = x25519_dalek::PublicKey::from(x_i_bytes);
+        let i_public = x25519_dalek_ng::PublicKey::from(x_i_bytes);
 
         // generating shared secret at responder
         let shared_secret_0 = self.0.secret.diffie_hellman(&i_public);
@@ -623,7 +623,7 @@ impl PartyR<Msg3Receiver> {
                 // Generating static public key of initiator
         let mut statkey_i_bytes = [0; 32];
         statkey_i_bytes.copy_from_slice(&i_public_static_bytes[..32]);
-        let i_public_static = x25519_dalek::PublicKey::from(statkey_i_bytes);
+        let i_public_static = x25519_dalek_ng::PublicKey::from(statkey_i_bytes);
         
         let shared_secret_2 = self.0.r_ecdh_secret.diffie_hellman(&i_public_static);
 
