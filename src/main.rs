@@ -1,4 +1,4 @@
-/*//#![no_std]
+//#![no_std]
 
 use oscore::edhoc::{
     error::{OwnError, OwnOrPeerError},
@@ -258,4 +258,3 @@ fn hexstring(slice: &[u8]) -> String {
             .collect::<Vec<String>>()
             .join(", 0x")
 }
-*/

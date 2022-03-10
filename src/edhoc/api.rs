@@ -405,13 +405,13 @@ impl PartyI<Msg4ReceiveVerify> {
 
         let sck = util::edhoc_exporter(
             "SCK", 
-            32, 
+            256, 
             &self.0.master_salt, 
             &self.0.master_secret)?;
 
         let rck = util::edhoc_exporter(
             "RCK", 
-            32, 
+            256, 
             &self.0.master_salt, 
             &self.0.master_secret)?;
 
@@ -636,7 +636,7 @@ impl PartyR<Msg3Receiver> {
             self.0.prk_3e2m_hkdf, 
             &th_3, 
             util::CCM_KEY_LEN,
-            "K_3_",
+            "K_3",
             true)?;
         let iv_3 = util::generic_expand(
             prk_3e2m_hkdf_cpy1, 
@@ -697,13 +697,13 @@ impl PartyR<Msg3Receiver> {
 
         let sck = util::edhoc_exporter(
             "SCK", 
-            32, 
+            256, 
             &master_salt, 
             &master_secret)?;
 
         let rck = util::edhoc_exporter(
             "RCK", 
-            32, 
+            256, 
             &master_salt, 
             &master_secret)?;
 
