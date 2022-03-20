@@ -726,7 +726,7 @@ pub struct Msg4Sender {
 impl PartyR<Msg4Sender> {
     pub fn generate_message_4(
         self,
-    ) -> Result< Vec<u8>, OwnOrPeerError> {
+    ) -> Result< (Vec<u8>), OwnOrPeerError> {
 
 
         let k_4 = util::edhoc_exporter(
@@ -754,7 +754,7 @@ impl PartyR<Msg4Sender> {
         };
         let msg4_seq = util::serialize_message_4(&msg4)?;
 
-        Ok(msg4_seq)
+        Ok((msg4_seq)
     }
 }
 /*
@@ -832,6 +832,7 @@ mod tests {
         successful_run(2);
         successful_run(3);
     }
+    
 
     #[test]
     fn unsupported_suite() {

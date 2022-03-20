@@ -3,6 +3,7 @@
 use oscore::edhoc::{
     error::{OwnError, OwnOrPeerError},
     PartyI, PartyR,
+    
 };
 use rand::{rngs::StdRng, Rng,SeedableRng};
 
@@ -117,7 +118,7 @@ fn main() {
         Err(OwnError(b)) => panic!("Send these bytes: {:?}", &b),
         Ok(val) => val, };
 
-        let (msg4_receiver_verifier, msg3_bytes) =
+    let (msg4_receiver_verifier, msg3_bytes) =
         match msg3_sender.generate_message_3() {
             Err(OwnError(b)) => panic!("Send these bytes: {}", hexstring(&b)),
             Ok(val) => val,
@@ -144,7 +145,6 @@ fn main() {
             }
             Ok(val) => val,
         };
-    
 
         /*///////////////////////////////////////////////////////////////////////////
     /// Initiator receiving and handling message 4, and generati  sck and rck. Then all is done
@@ -170,84 +170,6 @@ fn main() {
     println!("sck {:?}", r_sck);
     println!("rck {:?}", r_rck);
 
-/*
-        let (_v_kid, msg2_verifier) =
-        // This is a case where we could receive an error message (just abort
-        // then), or cause an error (send it to the peer)
-        match msg2_receiver.extract_peer_kid(msg2_bytes) {
-            Err(OwnOrPeerError::PeerError(s)) => {
-                panic!("Received error msg: {}", s)
-            }
-            Err(OwnOrPeerError::OwnError(b)) => {
-                panic!("Send these bytes: {}", hexstring(&b))
-            }
-            Ok(val) => val,
-        };
-    //println!("{:?}", n);
-*/
-    /*
-
-    let v1: Vec<u8> = vec![0, 1, 2, 3];
-    let v2: Vec<u8> = vec![5, 6, 7, 8];
-
-    let v3 = xor(&v1, &v2);
-
-    println!("v1: {:?}", v1);
-
-    println!("v2: {:?}", v2);
-
-    println!("v3: {:?}", v3);
-
-
-    let v1_ = xor(&v1,&v3);
-
-
-    println!("v1_prime: {:?}", v1_);*/
-
-
-  //  println!("{:?}", n)
-/*
-    println!("{:?}", hexstring(&msg1Byt));
-
-
-    let msgdeserial = util::deserialize_message_1(&msg1Byt);
-
-
-    let 
-
-    println!("{:?}", msgdeserial);
-*/
-    // XOR with common IV
-   // for (b1, b2) in nonce.iter_mut().zip(common_iv.iter()) {
-   //     *b1 ^= b2;
-   // }
-     
-    /*
-    // Party V ----------------------------------------------------------------
-    // "Generate" an ECDH key pair (this is static, but MUST be ephemeral)
-    // The ECDH private key used by V
-    let v_priv = [
-        0x17, 0xCD, 0xC7, 0xBC, 0xA3, 0xF2, 0xA0, 0xBD, 0xA6, 0x0C, 0x6D,
-        0xE5, 0xB9, 0x6F, 0x82, 0xA3, 0x62, 0x39, 0xB4, 0x4B, 0xDE, 0x39,
-        0x7A, 0x38, 0x62, 0xD5, 0x29, 0xBA, 0x8B, 0x3D, 0x7C, 0x62,
-    ];
-    // Choose a connection identifier
-    let v_c_v = [0xC4].to_vec();
-    // This is the keypair used to authenticate.
-    // U must have the public key.
-    let v_auth_priv = [
-        0x74, 0x56, 0xB3, 0xA3, 0xE5, 0x8D, 0x8D, 0x26, 0xDD, 0x36, 0xBC,
-        0x75, 0xD5, 0x5B, 0x88, 0x63, 0xA8, 0x5D, 0x34, 0x72, 0xF4, 0xA0,
-        0x1F, 0x02, 0x24, 0x62, 0x1B, 0x1C, 0xB8, 0x16, 0x6D, 0xA9,
-    ];
-    let v_kid = [0xA3].to_vec();
-
-    let msg1_receiver =
-        PartyR::new(v_c_v, v_priv, &v_auth_priv, &v_auth_pub, v_kid);
-    // This is a case where we could cause an error, which we'd send to the
-    // other party
-
-*/
 }
 
 fn hexstring(slice: &[u8]) -> String {
