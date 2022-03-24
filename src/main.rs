@@ -130,7 +130,7 @@ fn main() {
     
     let tup3 = msg3_receiver.handle_message_3(msg3_bytes,&i_static_pub.as_bytes().to_vec());
 
-    let (msg4sender, r_sck,r_rck) = match tup3 {
+    let (msg4sender, r_sck,r_rck,rk) = match tup3 {
             Ok(v) => v,
             Err(e) =>panic!("panicking in handling message 3 {}", e),
         };
@@ -150,7 +150,7 @@ fn main() {
     /// Initiator receiving and handling message 4, and generati  sck and rck. Then all is done
     ///////////////////////////////////////////////////////////////////// */
 
-    let (i_sck, i_rck) =
+    let (i_sck, i_rck,rk) =
     match msg4_receiver_verifier.receive_message_4(msg4_bytes) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Received error msg: {}", s)

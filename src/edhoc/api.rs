@@ -373,7 +373,7 @@ impl PartyI<Msg4ReceiveVerify> {
     pub fn receive_message_4(
         self,
         msg4_seq : Vec<u8>,
-    ) -> Result<(Vec<u8>, Vec<u8>), OwnOrPeerError> {
+    ) -> Result<(Vec<u8>, Vec<u8>,Vec<u8>), OwnOrPeerError> {
 
 
         util::fail_on_error_message(&msg4_seq)?;
@@ -415,11 +415,17 @@ impl PartyI<Msg4ReceiveVerify> {
             &self.0.master_salt, 
             &self.0.master_secret)?;
 
+        let rk = util::edhoc_exporter(
+            "RK0", 
+            256, 
+            &self.0.master_salt, 
+            &self.0.master_secret)?;
+    
 
 
 
 
-        Ok((sck,rck))
+        Ok((sck,rck,rk))
     }
 
 }
@@ -608,7 +614,7 @@ impl PartyR<Msg3Receiver> {
         self,
         msg_3_seq: Vec<u8>,
         i_public_static_bytes: &[u8],
-    ) -> Result<(PartyR<Msg4Sender>, Vec<u8>, Vec<u8>), OwnOrPeerError> {
+    ) -> Result<(PartyR<Msg4Sender>, Vec<u8>, Vec<u8>,Vec<u8>), OwnOrPeerError> {
         util::fail_on_error_message(&msg_3_seq)?;
         // first, relevant copies:
         let prk_3e2m_hkdf_cpy1 = self.0.prk_3e2m_hkdf.clone();
@@ -707,12 +713,18 @@ impl PartyR<Msg3Receiver> {
             &master_salt, 
             &master_secret)?;
 
+        let rk = util::edhoc_exporter(
+            "RK0", 
+            256, 
+            &master_salt, 
+            &master_secret)?;
         Ok((PartyR(Msg4Sender{
             prk_4x3m : prk_4x3m,
             th_4 : th_4,
         }),
         sck,
-        rck))
+        rck,
+        rk))
     }
 }
 
