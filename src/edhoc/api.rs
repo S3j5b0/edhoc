@@ -83,7 +83,7 @@ impl PartyI<Msg1Sender> {
         r#type: isize,
         suites: isize,
     ) -> Result<(Vec<u8>, PartyI<Msg2Receiver>), EarlyError> {
-        // Encode the necessary informati'on into the first message
+        // Encode the necessary information into the first message
         let msg_1 = Message1 {
             r#type,
             suite: suites,
@@ -124,7 +124,7 @@ impl PartyI<Msg2Receiver> {
     pub fn unpack_message_2_return_kid(
         self,
         msg_2: Vec<u8>,
-    ) -> Result<(Vec<u8>, PartyI<Msg2Verifier>), OwnOrPeerError> {
+    ) -> Result<(Vec<u8>, Vec<u8>, PartyI<Msg2Verifier>), OwnOrPeerError> {
 
         util::fail_on_error_message(&msg_2)?;
 
@@ -141,7 +141,8 @@ impl PartyI<Msg2Receiver> {
 
 
        let shared_secret_0 = self.0.i_ecdh_ephemeralsecret.diffie_hellman(&r_public);
- 
+        
+       let connection_identifier_clone = msg_2.c_r.clone();
 
         // reconstructing keystream2
         let th_2 = util::compute_th_2(self.0.msg_1_seq, &msg_2.c_r, r_public)?;
@@ -160,6 +161,7 @@ impl PartyI<Msg2Receiver> {
 
         Ok((
             r_kid,
+            connection_identifier_clone,
             PartyI(Msg2Verifier {
                 i_ecdh_ephemeralsecret : self.0.i_ecdh_ephemeralsecret,
                 stat_priv: self.0.stat_priv,
@@ -229,10 +231,8 @@ impl PartyI<Msg2Verifier> {
         let prk_3e2m_hkdf_cpy = prk_3e2m_hkdf.clone();
 
 
-
-
         let mac_2 = util::create_macwith_expand(prk_3e2m_hkdf, 
-            util::HASHFUNC_OUTPUT_LEN_BITS, 
+            util::EDHOC_MAC, 
             &self.0.th_2, 
             "mac_2", 
             id_cred_r, 
@@ -301,7 +301,7 @@ impl PartyI<Msg3Sender> {
 
         let mac_3 = util::create_macwith_expand(
             self.0.prk_3e2m_hkdf, 
-            util::HASHFUNC_OUTPUT_LEN_BITS, 
+            util::EDHOC_MAC, 
             &th_3,  
             "MAC_3",
              id_cred_i, 
@@ -485,7 +485,7 @@ impl PartyR<Msg1Receiver> {
     pub fn handle_message_1(
         self,
         msg_1: Vec<u8>,
-    ) -> Result<PartyR<Msg2Sender>, OwnError> {
+    ) -> Result<(PartyR<Msg2Sender>,Vec<u8>,Vec<u8>), OwnError> {
         // Alias this
         let msg_1_seq = msg_1;
         // Decode the first message
@@ -496,7 +496,8 @@ impl PartyR<Msg1Receiver> {
         if msg_1.suite != 3 {
             Err(Error::UnsupportedSuite)?;
         }
-        let c_r = msg_1.c_i.iter().map(|x| x + 1).collect();
+        let c_r :Vec<u8>= msg_1.c_i.iter().map(|x| x + 1).collect();
+        let c_r_cpy : Vec<u8> = c_r.clone();
 
         // Use U's public key to generate the ephemeral shared secret
         let mut x_i_bytes = [0; 32];
@@ -512,7 +513,7 @@ impl PartyR<Msg1Receiver> {
 
 
 
-        Ok(PartyR(Msg2Sender {
+        Ok((PartyR(Msg2Sender {
             c_r: c_r,
             ecdh_r_secret : self.0.secret,
             shared_secret_0,
@@ -521,7 +522,9 @@ impl PartyR<Msg1Receiver> {
             stat_pub: self.0.stat_pub,
             r_kid: self.0.kid,
             msg_1_seq,
-        }))
+        }),
+        c_r_cpy,
+        msg_1.c_i))
     }
 }
 
@@ -561,7 +564,7 @@ impl PartyR<Msg2Sender> {
             let (prk_3e2m,prk_3e2m_hkdf) = util::derive_prk(Some(&prk_2e),self.0.shared_secret_1.as_bytes())?;
 
             let prk_3e2m_hkdf_cpy = prk_3e2m_hkdf.clone();
-            let mac_2 = util::create_macwith_expand(prk_3e2m_hkdf, util::HASHFUNC_OUTPUT_LEN_BITS, &th_2, "mac_2", id_cred_r, cred_r)?;
+            let mac_2 = util::create_macwith_expand(prk_3e2m_hkdf, util::EDHOC_MAC, &th_2, "mac_2", id_cred_r, cred_r)?;
 
             let plaintext_encoded = util::build_plaintext(&self.0.r_kid, &mac_2)?;
 
@@ -621,7 +624,6 @@ impl PartyR<Msg3Receiver> {
         let prk_3e2m_hkdf_cpy2 = self.0.prk_3e2m_hkdf.clone();
 
         // Check if we don't have an error message
-        
         // Decode the third message
 
         let msg_3 = util::deserialize_message_3(&msg_3_seq)?;
@@ -665,19 +667,19 @@ impl PartyR<Msg3Receiver> {
 
         let cred_i = cose::serialize_cred_x(&i_public_static.to_bytes(), &r_kid)?;
       
-      
+
         let mac_3_initiator = util::create_macwith_expand(
             prk_3e2m_hkdf_cpy2, 
-            util::HASHFUNC_OUTPUT_LEN_BITS, 
+            util::EDHOC_MAC, 
             &th_3,  
             "MAC_3",
              id_cred_i, 
              cred_i)?;
 
-
         if mac_3_initiator != mac3{
             Err(Error::BadMac)?;
             }
+
         // now computing the values needed for sck and rck
         let th_4 = util::compute_th_4(&th_3, &msg_3.ciphertext)?;
 

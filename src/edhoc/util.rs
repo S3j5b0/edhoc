@@ -19,6 +19,7 @@ use crate::cbor;
 pub const CCM_KEY_LEN: usize = 128;
 pub const CCM_NONCE_LEN: usize = 104;
 pub const SALT_LENGTH : usize = 64;
+pub const EDHOC_MAC :usize = 64;
 pub const HASHFUNC_OUTPUT_LEN_BITS: usize = 256;
 pub const CONNECTION_IDENTIFIER_LENGTH: usize = 1;
 
@@ -453,25 +454,21 @@ fn h(seq: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// Returns the CBOR bstr making up the plaintext of `message_i`.
-pub fn build_plaintext(kid: &[u8], signature: &[u8]) -> Result<Vec<u8>> {
-    // Create a sequence of CBOR items
-    // Since ID_CRED_V contains a single kid parameter, take only the bstr of
-    // it. Since the signature is raw bytes, wrap it in a bstr.
-    Ok(cbor::encode_sequence((
-        Bytes::new(kid),
-        Bytes::new(signature),
-    ))?)
+pub fn build_plaintext(kid: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+
+    let concat = [key,kid].concat();
+    println!("conat {:?}", concat);
+    Ok(concat.to_vec())
 }
 
 /// Extracts and returns the `kid` and signature from the plaintext of
 /// `message_i`.
 pub fn extract_plaintext(plaintext: Vec<u8>) -> Result<(Vec<u8>, Vec<u8>)> {
-    // Extract the kid and signature from the contained sequence
-    let mut temp = Vec::with_capacity(plaintext.len() + 1);
-    let (kid, sig): (ByteBuf, ByteBuf) =
-        cbor::decode_sequence(&plaintext, 2, &mut temp)?;
 
-    Ok((kid.into_vec(), sig.into_vec()))
+    let key = plaintext[..EDHOC_MAC/8].to_vec();
+    let kid = plaintext[EDHOC_MAC/8..].to_vec();
+
+    Ok((kid, key))
 }
 
 /// Encrypts and authenticates with AES-CCM-16-64-128.

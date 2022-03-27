@@ -48,7 +48,7 @@ fn main() {
         // since the protocol hasn't started yet.
         msg1_sender.generate_message_1(METHOD_TYPE_I, SUITE_I).unwrap();
 
-
+    println!("msg1 {}", msg1_bytes.len());
 
 
   //  let msg_1_struct : Message1= util::deserialize_message_1(&msg1_bytes).unwrap();
@@ -71,19 +71,13 @@ fn main() {
     let msg1_receiver =
        PartyR::new(r_priv, r_static_priv, r_static_pub, r_kid);
        
-    let msg2_sender = match msg1_receiver.handle_message_1(msg1_bytes) {
+    let (msg2_sender,ad_r,ad_i) = match msg1_receiver.handle_message_1(msg1_bytes) {
         Err(OwnError(b)) => {
             panic!("{:?}", b)
         },
         Ok(val) => val,
     };
 
-    // generated shared secret for responder:
-    // println!("{:?}", msg2_sender.0.shared_secret.to_bytes());
-
-    /*
-    Responder gør sig klar til at lave message 2.
-    */
 
     let (msg2_bytes,msg3_receiver) = match msg2_sender.generate_message_2() {
         Err(OwnOrPeerError::PeerError(s)) => {
@@ -95,6 +89,7 @@ fn main() {
         Ok(val) => val,
     };
 
+    println!("msg2 {}", msg2_bytes.len());
 
     /*///////////////////////////////////////////////////////////////////////////
     /// Initiator receiving and handling message 2, and then generating message 3, and the rck/sck
@@ -102,7 +97,7 @@ fn main() {
     
 
     // unpacking message, and getting kid, which we in a realworld situation would use to lookup our key
-    let  (r_kid ,msg2_verifier) = match msg2_receiver.unpack_message_2_return_kid(msg2_bytes){
+    let  (r_kid ,ad_r ,msg2_verifier) = match msg2_receiver.unpack_message_2_return_kid(msg2_bytes){
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Error during  {}", s)
         }
@@ -123,6 +118,7 @@ fn main() {
             Err(OwnError(b)) => panic!("Send these bytes: {}", hexstring(&b)),
             Ok(val) => val,
         };
+    println!("msg3 {}", msg3_bytes.len());
 
     /*///////////////////////////////////////////////////////////////////////////
     /// Responder receiving and handling message 3, and generating message4 and sck rck
@@ -145,6 +141,7 @@ fn main() {
             }
             Ok(val) => val,
         };
+        println!("msg4 {}", msg4_bytes.len());
 
         /*///////////////////////////////////////////////////////////////////////////
     /// Initiator receiving and handling message 4, and generati  sck and rck. Then all is done

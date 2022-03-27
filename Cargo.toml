@@ -16,8 +16,6 @@ serde_cbor = { version = "0.11.2", default-features = false, features = ["alloc"
 serde_bytes = { version = "0.11.1", default-features = false, features = ["alloc"] }
 x25519-dalek-ng = { version = "1.1.1", default-features = false, features = ["u32_backend"] }
 rand_core = "0.6.2"
-eui-no-std = "0.3"
-
 sha2 = { version = "0.8.0", default-features = false }
 aes = "0.7.5"
 ccm = "0.4.4"
