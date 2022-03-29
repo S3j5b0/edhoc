@@ -145,6 +145,8 @@ impl PartyI<Msg2Receiver> {
        let connection_identifier_clone = msg_2.c_r.clone();
 
         // reconstructing keystream2
+
+        println!("appeui vrfy {:?}", &msg_2.c_r);
         let th_2 = util::compute_th_2(self.0.msg_1_seq, &msg_2.c_r, r_public)?;
         let (prk_2e,prk_2e_hkdf) = util::derive_prk(None, shared_secret_0.as_bytes())?;
 
@@ -211,8 +213,8 @@ impl PartyI<Msg2Verifier> {
 
         // build cred_x and id_cred_x (for responder party)
         let id_cred_r = cose::build_id_cred_x(&self.0.r_kid)?;
-        let cred_r = cose::serialize_cred_x(r_public_static_bytes,&self.0.r_kid )?; 
 
+        let cred_r = cose::serialize_cred_x(r_public_static_bytes,&self.0.r_kid )?; 
 
         // Generating static public key of initiator
         let mut statkey_r_bytes = [0; 32];
@@ -229,18 +231,19 @@ impl PartyI<Msg2Verifier> {
             ,shared_secret_1.as_bytes())?;
 
         let prk_3e2m_hkdf_cpy = prk_3e2m_hkdf.clone();
-
-
+        
+        println!("th22? {:?}", &self.0.th_2);
         let mac_2 = util::create_macwith_expand(prk_3e2m_hkdf, 
             util::EDHOC_MAC, 
             &self.0.th_2, 
             "mac_2", 
             id_cred_r, 
             cred_r)?;
-
+      
         if self.0.mac_2 != mac_2{
             Err(Error::BadMac)?;
         }
+        
 
         Ok(PartyI(Msg3Sender{
             i_stat_priv : self.0.stat_priv,
@@ -485,7 +488,8 @@ impl PartyR<Msg1Receiver> {
     pub fn handle_message_1(
         self,
         msg_1: Vec<u8>,
-    ) -> Result<(PartyR<Msg2Sender>,Vec<u8>,Vec<u8>), OwnError> {
+        dev_eui : Vec<u8>,
+    ) -> Result<(PartyR<Msg2Sender>,Vec<u8>), OwnError> {
         // Alias this
         let msg_1_seq = msg_1;
         // Decode the first message
@@ -496,8 +500,6 @@ impl PartyR<Msg1Receiver> {
         if msg_1.suite != 3 {
             Err(Error::UnsupportedSuite)?;
         }
-        let c_r :Vec<u8>= msg_1.c_i.iter().map(|x| x + 1).collect();
-        let c_r_cpy : Vec<u8> = c_r.clone();
 
         // Use U's public key to generate the ephemeral shared secret
         let mut x_i_bytes = [0; 32];
@@ -514,7 +516,7 @@ impl PartyR<Msg1Receiver> {
 
 
         Ok((PartyR(Msg2Sender {
-            c_r: c_r,
+            c_r: dev_eui,
             ecdh_r_secret : self.0.secret,
             shared_secret_0,
             shared_secret_1,
@@ -523,7 +525,6 @@ impl PartyR<Msg1Receiver> {
             r_kid: self.0.kid,
             msg_1_seq,
         }),
-        c_r_cpy,
         msg_1.c_i))
     }
 }
@@ -564,6 +565,7 @@ impl PartyR<Msg2Sender> {
             let (prk_3e2m,prk_3e2m_hkdf) = util::derive_prk(Some(&prk_2e),self.0.shared_secret_1.as_bytes())?;
 
             let prk_3e2m_hkdf_cpy = prk_3e2m_hkdf.clone();
+
             let mac_2 = util::create_macwith_expand(prk_3e2m_hkdf, util::EDHOC_MAC, &th_2, "mac_2", id_cred_r, cred_r)?;
 
             let plaintext_encoded = util::build_plaintext(&self.0.r_kid, &mac_2)?;
@@ -579,7 +581,7 @@ impl PartyR<Msg2Sender> {
             let ciphertext_2 = util::xor(&keystream2, &plaintext_encoded)?;
 
 
-
+            println!("packed on appeui {:?}", self.0.c_r);
             let msg2 = Message2 {
                 ephemeral_key_r : self.0.x_r.as_bytes().to_vec(),
                 c_r : self.0.c_r,

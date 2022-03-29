@@ -9,13 +9,14 @@ use rand::{rngs::StdRng, Rng,SeedableRng};
 
 use x25519_dalek_ng::{PublicKey,StaticSecret};
 
-use rand_core::OsRng;
+use rand_core::{OsRng, RngCore};
 
 
 const SUITE_I: isize = 3;
 const METHOD_TYPE_I : isize = 0;
-fn main() {
 
+
+fn main() {
 
 
     /*
@@ -34,15 +35,14 @@ fn main() {
     let i_priv = r.gen::<[u8;32]>();
     
     // Choose a connection identifier
-    let i_c_i = [0x1].to_vec();
+    let i_c_i = [0x1,1,2,3,4].to_vec();
 
 
     let i_kid = [0xA2].to_vec();
     let msg1_sender =
         PartyI::new(i_c_i, i_priv, i_static_priv, i_static_pub, i_kid);
 
-    // type = 1 would be the case in CoAP, where party U can correlate
-    // message_1 and message_2 with the token
+
     let (msg1_bytes, msg2_receiver) =
         // If an error happens here, we just abort. No need to send a message,
         // since the protocol hasn't started yet.
@@ -63,6 +63,7 @@ fn main() {
 
     let r_kid = [0xA3].to_vec();
 
+    let deveui = [1,2,3,4,5,6].to_vec();
     // create keying material
 
     let mut r2 : StdRng = StdRng::from_entropy();
@@ -71,7 +72,7 @@ fn main() {
     let msg1_receiver =
        PartyR::new(r_priv, r_static_priv, r_static_pub, r_kid);
        
-    let (msg2_sender,ad_r,ad_i) = match msg1_receiver.handle_message_1(msg1_bytes) {
+    let (msg2_sender,ad_i) = match msg1_receiver.handle_message_1(msg1_bytes,deveui) {
         Err(OwnError(b)) => {
             panic!("{:?}", b)
         },

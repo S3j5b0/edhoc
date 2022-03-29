@@ -21,7 +21,7 @@ pub const CCM_NONCE_LEN: usize = 104;
 pub const SALT_LENGTH : usize = 64;
 pub const EDHOC_MAC :usize = 64;
 pub const HASHFUNC_OUTPUT_LEN_BITS: usize = 256;
-pub const CONNECTION_IDENTIFIER_LENGTH: usize = 1;
+pub const CONNECTION_IDENTIFIER_LENGTH: usize = 6;
 
 
 
