@@ -35,19 +35,20 @@ fn main() {
     let i_priv = r.gen::<[u8;32]>();
     
     // Choose a connection identifier
-    let i_c_i = [0x1,1,2,3,4].to_vec();
+    let deveui = [0x1,1,2,3,2,4].to_vec();
+    let appeui = [0,1,3,4,5,6].to_vec();
 
 
     let i_kid = [0xA2].to_vec();
     let msg1_sender =
-        PartyI::new(i_c_i, i_priv, i_static_priv, i_static_pub, i_kid);
+        PartyI::new(deveui,appeui, i_priv, i_static_priv, i_static_pub, i_kid);
 
 
     let (msg1_bytes, msg2_receiver) =
         // If an error happens here, we just abort. No need to send a message,
         // since the protocol hasn't started yet.
         msg1_sender.generate_message_1(METHOD_TYPE_I, SUITE_I).unwrap();
-
+ 
     println!("msg1 {}", msg1_bytes.len());
 
 
@@ -63,7 +64,6 @@ fn main() {
 
     let r_kid = [0xA3].to_vec();
 
-    let deveui = [1,2,3,4,5,6].to_vec();
     // create keying material
 
     let mut r2 : StdRng = StdRng::from_entropy();
@@ -72,14 +72,14 @@ fn main() {
     let msg1_receiver =
        PartyR::new(r_priv, r_static_priv, r_static_pub, r_kid);
        
-    let (msg2_sender,ad_i) = match msg1_receiver.handle_message_1(msg1_bytes,deveui) {
+    let (msg2_sender,devui,appeui) = match msg1_receiver.handle_message_1(msg1_bytes) {
         Err(OwnError(b)) => {
             panic!("{:?}", b)
         },
         Ok(val) => val,
     };
 
-
+    // AS should now validate deveui and appeui
     let (msg2_bytes,msg3_receiver) = match msg2_sender.generate_message_2() {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Received error msg: {}", s)
@@ -127,7 +127,7 @@ fn main() {
     
     let tup3 = msg3_receiver.handle_message_3(msg3_bytes,&i_static_pub.as_bytes().to_vec());
 
-    let (msg4sender, r_sck,r_rck,rk) = match tup3 {
+    let (msg4sender, as_sck,as_rck,as_rk) = match tup3 {
             Ok(v) => v,
             Err(e) =>panic!("panicking in handling message 3 {}", e),
         };
@@ -148,7 +148,7 @@ fn main() {
     /// Initiator receiving and handling message 4, and generati  sck and rck. Then all is done
     ///////////////////////////////////////////////////////////////////// */
 
-    let (i_sck, i_rck,rk) =
+    let (ed_sck, ed_rck,ed_rk) =
     match msg4_receiver_verifier.receive_message_4(msg4_bytes) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Received error msg: {}", s)
@@ -161,12 +161,14 @@ fn main() {
 
     println!("Initiator completed handshake and made chan keys");
 
-    println!("sck {:?}", i_sck);
-    println!("rck {:?}", i_rck);
+    println!("sck {:?}", ed_sck);
+    println!("rck {:?}", ed_rck);
+    println!("rk ed {:?}", ed_rk);
     println!("Responder completed handshake and made chan keys");
 
-    println!("sck {:?}", r_sck);
-    println!("rck {:?}", r_rck);
+    println!("sck {:?}", as_sck);
+    println!("rck {:?}", as_rck);
+    println!("as rk {:?}", as_rk);
 
 }
 

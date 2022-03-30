@@ -26,7 +26,8 @@ impl PartyIState for Msg4ReceiveVerify {}
 
 
 pub struct Msg1Sender {
-    c_i: Vec<u8>,
+    deveui: Vec<u8>,
+    appeui: Vec<u8>,
     pub secret: StaticSecret,
     pub x_i: PublicKey,
     static_secret: StaticSecret,
@@ -45,7 +46,8 @@ impl PartyI<Msg1Sender> {
     /// * `kid` - The key ID by which the other party is able to retrieve
     ///   `stat_public`, which is called 'id_cred_x in edho 14 .
     pub fn new(
-        c_i: Vec<u8>,
+        deveui: Vec<u8>,
+        appeui: Vec<u8>,
         ecdh_secret: [u8; 32],
         stat_priv: StaticSecret,
         stat_pub: PublicKey,
@@ -58,7 +60,8 @@ impl PartyI<Msg1Sender> {
 
         // Combine the authentication key pair for convenience
          PartyI(Msg1Sender {
-            c_i,
+            deveui,
+            appeui,
             secret,
             x_i,
             static_secret:stat_priv,
@@ -88,13 +91,13 @@ impl PartyI<Msg1Sender> {
             r#type,
             suite: suites,
             x_i: self.0.x_i.as_bytes().to_vec(), // sending PK as vector
-            c_i: self.0.c_i,
+            deveui: self.0.deveui,
+            appeui: self.0.appeui,
         };
         // Get CBOR sequence for message
         let msg_1_seq = util::serialize_message_1(&msg_1)?;
         // Copy for returning
         let msg_1_bytes = msg_1_seq.clone();
-
         Ok((
             msg_1_bytes,
             PartyI(Msg2Receiver {
@@ -146,7 +149,6 @@ impl PartyI<Msg2Receiver> {
 
         // reconstructing keystream2
 
-        println!("appeui vrfy {:?}", &msg_2.c_r);
         let th_2 = util::compute_th_2(self.0.msg_1_seq, &msg_2.c_r, r_public)?;
         let (prk_2e,prk_2e_hkdf) = util::derive_prk(None, shared_secret_0.as_bytes())?;
 
@@ -232,7 +234,6 @@ impl PartyI<Msg2Verifier> {
 
         let prk_3e2m_hkdf_cpy = prk_3e2m_hkdf.clone();
         
-        println!("th22? {:?}", &self.0.th_2);
         let mac_2 = util::create_macwith_expand(prk_3e2m_hkdf, 
             util::EDHOC_MAC, 
             &self.0.th_2, 
@@ -407,13 +408,13 @@ impl PartyI<Msg4ReceiveVerify> {
 
 
         let sck = util::edhoc_exporter(
-            "SCK", 
+            "DOWNLINK", 
             256, 
             &self.0.master_salt, 
             &self.0.master_secret)?;
 
         let rck = util::edhoc_exporter(
-            "RCK", 
+            "UPLINK", 
             256, 
             &self.0.master_salt, 
             &self.0.master_secret)?;
@@ -488,8 +489,7 @@ impl PartyR<Msg1Receiver> {
     pub fn handle_message_1(
         self,
         msg_1: Vec<u8>,
-        dev_eui : Vec<u8>,
-    ) -> Result<(PartyR<Msg2Sender>,Vec<u8>), OwnError> {
+    ) -> Result<(PartyR<Msg2Sender>,Vec<u8>,Vec<u8>), OwnError> {
         // Alias this
         let msg_1_seq = msg_1;
         // Decode the first message
@@ -516,7 +516,7 @@ impl PartyR<Msg1Receiver> {
 
 
         Ok((PartyR(Msg2Sender {
-            c_r: dev_eui,
+            c_r: msg_1.appeui.clone(),
             ecdh_r_secret : self.0.secret,
             shared_secret_0,
             shared_secret_1,
@@ -525,7 +525,8 @@ impl PartyR<Msg1Receiver> {
             r_kid: self.0.kid,
             msg_1_seq,
         }),
-        msg_1.c_i))
+        msg_1.deveui,
+        msg_1.appeui))
     }
 }
 
@@ -581,7 +582,6 @@ impl PartyR<Msg2Sender> {
             let ciphertext_2 = util::xor(&keystream2, &plaintext_encoded)?;
 
 
-            println!("packed on appeui {:?}", self.0.c_r);
             let msg2 = Message2 {
                 ephemeral_key_r : self.0.x_r.as_bytes().to_vec(),
                 c_r : self.0.c_r,
@@ -589,6 +589,8 @@ impl PartyR<Msg2Sender> {
             };
 
             let msg2_seq = util::serialize_message_2(&msg2)?;
+
+           
 
             Ok((msg2_seq, 
                 PartyR(Msg3Receiver {
@@ -706,13 +708,13 @@ impl PartyR<Msg3Receiver> {
         )?;
 
         let sck = util::edhoc_exporter(
-            "SCK", 
+            "UPLINK", 
             256, 
             &master_salt, 
             &master_secret)?;
 
         let rck = util::edhoc_exporter(
-            "RCK", 
+            "DOWNLINK", 
             256, 
             &master_salt, 
             &master_secret)?;

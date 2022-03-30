@@ -31,7 +31,8 @@ pub struct Message1 {
     pub r#type: isize,
     pub suite: isize,
     pub x_i: Vec<u8>,
-    pub c_i: Vec<u8>,
+    pub deveui: Vec<u8>,
+    pub appeui: Vec<u8>
 }
 
 /// Serializes EDHOC `message_1`.
@@ -42,7 +43,8 @@ pub fn serialize_message_1(msg: &Message1) -> Result<Vec<u8>> {
         msg.r#type,
         msg.suite,
         Bytes::new(&msg.x_i),
-        Bytes::new(&msg.c_i),
+        Bytes::new(&msg.deveui),
+        Bytes::new(&msg.appeui)
     );
 
     Ok(cbor::encode_sequence(raw_msg)?)
@@ -52,16 +54,19 @@ pub fn serialize_message_1(msg: &Message1) -> Result<Vec<u8>> {
 pub fn deserialize_message_1(msg: &[u8]) -> Result<Message1> {
     // Try to deserialize into our raw message format
     let mut temp = Vec::with_capacity(msg.len() + 1);
-    let raw_msg: (isize, isize, ByteBuf, ByteBuf) =
-        cbor::decode_sequence(msg, 4, &mut temp)?;
+    let raw_msg: (isize, isize, ByteBuf, ByteBuf, ByteBuf) =
+        cbor::decode_sequence(msg, 5, &mut temp)?;
 
 
     // On success, just move the items into the "nice" message structure
+
+    println!("appeui serialize {:?}",raw_msg.4.clone().into_vec() );
     Ok(Message1 {
         r#type: raw_msg.0,
         suite: raw_msg.1,
         x_i: raw_msg.2.into_vec(),
-        c_i: raw_msg.3.into_vec(),
+        deveui: raw_msg.3.into_vec(),
+        appeui: raw_msg.4.into_vec(),
     })
 }
 
@@ -79,6 +84,9 @@ pub fn serialize_message_2(msg: &Message2) -> Result<Vec<u8>> {
     let c_r_and_ciphertext = [msg.c_r.clone(), msg.ciphertext2.clone()].concat();
 
 
+    println!("cr and cipher serialize {:?}", msg.c_r.clone());
+
+
   //  println!("tuple before encode {:?}", c_r_and_ciphertext);
 let encoded = (
     Bytes::new(&msg.ephemeral_key_r),
@@ -94,10 +102,13 @@ pub fn deserialize_message_2(msg: &[u8]) -> Result<Message2> { //Result<Message2
     // First, attempt to decode the variant without c_u
     let (x_r, c_r_and_cipher2) = cbor::decode_sequence::<(ByteBuf, ByteBuf)>(msg, 2, &mut temp)?;
 
+    println!("c-r and cipher dec {:?}", c_r_and_cipher2);
             
 
     let connection_id = &c_r_and_cipher2[..CONNECTION_IDENTIFIER_LENGTH];
     let ciphertext2 = &c_r_and_cipher2[CONNECTION_IDENTIFIER_LENGTH..];
+    println!("c_rafter {:?}", connection_id);
+    println!("cipher after {:?}", ciphertext2);
 
     Ok(Message2 {
         ephemeral_key_r: x_r.to_vec(),
@@ -457,7 +468,6 @@ fn h(seq: &[u8]) -> Result<Vec<u8>> {
 pub fn build_plaintext(kid: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 
     let concat = [key,kid].concat();
-    println!("conat {:?}", concat);
     Ok(concat.to_vec())
 }
 
