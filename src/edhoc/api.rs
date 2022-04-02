@@ -42,6 +42,7 @@ impl PartyI<Msg1Sender> {
     /// * `c_u` - The chosen connection identifier.
     /// * `ecdh_secret` - The ECDH secret to use for this protocol run. Ephemeral
     /// * `stat_priv` - The private ed25519derivePRKauthentication key.
+    /// * deveui - the global adress of the device
     /// * `APPEUI` - MAC adress of server
     /// * `kid` - The key ID by which the other party is able to retrieve
     ///   `stat_public`, which is called 'id_cred_x in edho 14 .
@@ -72,15 +73,7 @@ impl PartyI<Msg1Sender> {
 
     /// Returns the bytes of the first message.
     ///
-    /// # Arguments
-    /// * `type` - type = 0 is used when there is no external correlation
-    ///   mechanism. type = 1 is used when there is an external correlation
-    ///   mechanism (e.g. the Token in CoAP) that enables Party U to correlate
-    ///   `message_1` and `message_2`. type = 2 is used when there is an
-    ///   external correlation mechanism that enables Party V to correlate
-    ///   `message_2` and `message_3`. type = 3 is used when there is an
-    ///   external correlation mechanism that enables the parties to correlate
-    ///   all the messages.
+
     pub fn generate_message_1(
         self,
         r#type: isize,
@@ -104,7 +97,6 @@ impl PartyI<Msg1Sender> {
                 i_ecdh_ephemeralsecret: self.0.secret,
                 stat_priv: self.0.static_secret,
                 stat_pub: self.0.static_public,
-      //          auth: self.0.auth,
                 kid: self.0.kid,
                 msg_1_seq,
             }),
@@ -569,6 +561,8 @@ impl PartyR<Msg2Sender> {
 
             let mac_2 = util::create_macwith_expand(prk_3e2m_hkdf, util::EDHOC_MAC, &th_2, "mac_2", id_cred_r, cred_r)?;
 
+
+            
             let plaintext_encoded = util::build_plaintext(&self.0.r_kid, &mac_2)?;
 
 
@@ -578,7 +572,6 @@ impl PartyR<Msg2Sender> {
                 plaintext_encoded.len(), 
                 "KEYSTREAM_2",
                 false)?;
-
             let ciphertext_2 = util::xor(&keystream2, &plaintext_encoded)?;
 
 

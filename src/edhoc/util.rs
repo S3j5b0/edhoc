@@ -21,7 +21,7 @@ pub const CCM_NONCE_LEN: usize = 104;
 pub const SALT_LENGTH : usize = 64;
 pub const EDHOC_MAC :usize = 64;
 pub const HASHFUNC_OUTPUT_LEN_BITS: usize = 256;
-pub const CONNECTION_IDENTIFIER_LENGTH: usize = 6;
+pub const CONNECTION_IDENTIFIER_LENGTH: usize = 8;
 
 
 
@@ -60,7 +60,6 @@ pub fn deserialize_message_1(msg: &[u8]) -> Result<Message1> {
 
     // On success, just move the items into the "nice" message structure
 
-    println!("appeui serialize {:?}",raw_msg.4.clone().into_vec() );
     Ok(Message1 {
         r#type: raw_msg.0,
         suite: raw_msg.1,
@@ -84,7 +83,6 @@ pub fn serialize_message_2(msg: &Message2) -> Result<Vec<u8>> {
     let c_r_and_ciphertext = [msg.c_r.clone(), msg.ciphertext2.clone()].concat();
 
 
-    println!("cr and cipher serialize {:?}", msg.c_r.clone());
 
 
   //  println!("tuple before encode {:?}", c_r_and_ciphertext);
@@ -102,13 +100,11 @@ pub fn deserialize_message_2(msg: &[u8]) -> Result<Message2> { //Result<Message2
     // First, attempt to decode the variant without c_u
     let (x_r, c_r_and_cipher2) = cbor::decode_sequence::<(ByteBuf, ByteBuf)>(msg, 2, &mut temp)?;
 
-    println!("c-r and cipher dec {:?}", c_r_and_cipher2);
             
 
     let connection_id = &c_r_and_cipher2[..CONNECTION_IDENTIFIER_LENGTH];
     let ciphertext2 = &c_r_and_cipher2[CONNECTION_IDENTIFIER_LENGTH..];
-    println!("c_rafter {:?}", connection_id);
-    println!("cipher after {:?}", ciphertext2);
+
 
     Ok(Message2 {
         ephemeral_key_r: x_r.to_vec(),

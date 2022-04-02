@@ -35,8 +35,8 @@ fn main() {
     let i_priv = r.gen::<[u8;32]>();
     
     // Choose a connection identifier
-    let deveui = [0x1,1,2,3,2,4].to_vec();
-    let appeui = [0,1,3,4,5,6].to_vec();
+    let deveui = [0x1,1,2,3,2,4,5,7].to_vec();
+    let appeui = [0,1,2,3,4,5,6,7].to_vec();
 
 
     let i_kid = [0xA2].to_vec();
