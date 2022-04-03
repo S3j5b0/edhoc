@@ -171,7 +171,6 @@ impl PartyI<Msg2Receiver> {
                 r_kid :r_kid_cpy,
                 r_ephemeral_pk: r_public,
 
-            
 
             }),
         ))
