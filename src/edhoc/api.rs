@@ -125,6 +125,7 @@ impl PartyI<Msg2Receiver> {
 
 
         let msg_2 = util::deserialize_message_2(&msg_2)?;
+        println("1")
 
         // cosntructing ephemeral keypair
 
@@ -143,6 +144,7 @@ impl PartyI<Msg2Receiver> {
 
         let th_2 = util::compute_th_2(self.0.msg_1_seq, &msg_2.c_r, r_public)?;
         let (prk_2e,prk_2e_hkdf) = util::derive_prk(None, shared_secret_0.as_bytes())?;
+        println("2")
 
 
         let keystream2 = util::generic_expand(prk_2e_hkdf, 
@@ -154,6 +156,7 @@ impl PartyI<Msg2Receiver> {
         let (r_kid,mac_2 ) = util::extract_plaintext(decryptedlaintext)?;
 
         let r_kid_cpy = r_kid.clone();
+        println("3")
 
         Ok((
             r_kid,
