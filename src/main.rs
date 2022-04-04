@@ -125,9 +125,7 @@ fn main() {
     /// Responder receiving and handling message 3, and generating message4 and sck rck
     ///////////////////////////////////////////////////////////////////// */
     
-    let tup3 = msg3_receiver.handle_message_3(msg3_bytes);
-
-    let (msg3verifier, r_kid) = match tup3 {
+    let (msg3verifier, r_kid) = match  msg3_receiver.handle_message_3(msg3_bytes) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Error during  {}", s)
         }
@@ -154,8 +152,8 @@ fn main() {
 
 
 
-        let msg4_bytes =
-        match msg4_sender.generate_message_4() {
+    let msg4_bytes =
+    match msg4_sender.generate_message_4() {
             Err(OwnOrPeerError::PeerError(s)) => {
                 panic!("Received error msg: {}", s)
             }
