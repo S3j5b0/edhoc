@@ -28,8 +28,8 @@ pub const CONNECTION_IDENTIFIER_LENGTH: usize = 8;
 /// EDHOC `message_1`.
 #[derive(Debug, PartialEq)]
 pub struct Message1 {
-    pub r#type: isize,
-    pub suite: isize,
+    pub r#type: u8,
+    pub suite: u8,
     pub x_i: Vec<u8>,
     pub deveui: Vec<u8>,
     pub appeui: Vec<u8>
@@ -54,7 +54,7 @@ pub fn serialize_message_1(msg: &Message1) -> Result<Vec<u8>> {
 pub fn deserialize_message_1(msg: &[u8]) -> Result<Message1> {
     // Try to deserialize into our raw message format
     let mut temp = Vec::with_capacity(msg.len() + 1);
-    let raw_msg: (isize, isize, ByteBuf, ByteBuf, ByteBuf) =
+    let raw_msg: (u8, u8, ByteBuf, ByteBuf, ByteBuf) =
         cbor::decode_sequence(msg, 5, &mut temp)?;
 
 

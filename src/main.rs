@@ -12,8 +12,8 @@ use x25519_dalek_ng::{PublicKey,StaticSecret};
 use rand_core::{OsRng, RngCore};
 
 
-const SUITE_I: isize = 3;
-const METHOD_TYPE_I : isize = 0;
+const SUITE_I: u8 = 3;
+const METHOD_TYPE_I : u8 = 0;
 
 
 fn main() {
@@ -125,15 +125,37 @@ fn main() {
     /// Responder receiving and handling message 3, and generating message4 and sck rck
     ///////////////////////////////////////////////////////////////////// */
     
-    let tup3 = msg3_receiver.handle_message_3(msg3_bytes,&i_static_pub.as_bytes().to_vec());
+    let tup3 = msg3_receiver.handle_message_3(msg3_bytes);
 
-    let (msg4sender, as_sck,as_rck,as_rk) = match tup3 {
-            Ok(v) => v,
-            Err(e) =>panic!("panicking in handling message 3 {}", e),
-        };
+    let (msg3verifier, r_kid) = match tup3 {
+        Err(OwnOrPeerError::PeerError(s)) => {
+            panic!("Error during  {}", s)
+        }
+        Err(OwnOrPeerError::OwnError(b)) => {
+            panic!("Send these bytes: {}", hexstring(&b))
+        } 
+        Ok(val) => val,
+    };
+
+    let (msg4_sender, as_sck, as_rck, as_rk) = match msg3verifier.verify_message_3(&i_static_pub.as_bytes().to_vec())
+    {
+        Err(OwnOrPeerError::PeerError(s)) => {
+            panic!("Error during  {}", s)
+        }
+        Err(OwnOrPeerError::OwnError(b)) => {
+            panic!("Send these bytes: {}", hexstring(&b))
+        } 
+        Ok(val) => val,
+    };
+
+    ///////
+    /// now the AS uses the kid to retrieve the right static public key
+    /// ///////////
+
+
 
         let msg4_bytes =
-        match msg4sender.generate_message_4() {
+        match msg4_sender.generate_message_4() {
             Err(OwnOrPeerError::PeerError(s)) => {
                 panic!("Received error msg: {}", s)
             }
