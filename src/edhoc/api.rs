@@ -146,10 +146,11 @@ impl PartyI<Msg2Receiver> {
         let (prk_2e,prk_2e_hkdf) = util::derive_prk(None, shared_secret_0.as_bytes())?;
 
 
-        let keystream2 = util::generic_expand(prk_2e_hkdf, 
-                                                        &th_2, msg_2.ciphertext2.len(), 
-                                                        "KEYSTREAM_2"
-                                                        ,false)?;
+        let keystream2 = util::generic_expand(
+                                            prk_2e_hkdf, 
+                                            &th_2, msg_2.ciphertext2.len(), 
+                                            "KEYSTREAM_2"
+                                            ,false)?;
         let decryptedlaintext = util::xor(&keystream2, &msg_2.ciphertext2)?;
 
         let (r_kid,mac_2 ) = util::extract_plaintext(decryptedlaintext)?;
@@ -323,7 +324,7 @@ impl PartyI<Msg3Sender> {
 
         // Constructing ciphertext:
         let ciphertext_3 = util::aead_seal(&k_3, &iv_3, &p, &ad)?;
-
+        println!("cipher3 {}", ciphertext_3.len());
         let ciphertext_3_cpy = ciphertext_3.clone();
         let msg_3 = Message3 {ciphertext: ciphertext_3};
         let msg_3_seq = util::serialize_message_3(&msg_3)?;
@@ -567,7 +568,6 @@ impl PartyR<Msg2Sender> {
             let plaintext_encoded = util::build_plaintext(&self.0.r_kid, &mac_2)?;
 
 
-
             let keystream2 = util::generic_expand(
                 prk_2e_hkdf, 
                 &th_2, 
@@ -575,6 +575,7 @@ impl PartyR<Msg2Sender> {
                 "KEYSTREAM_2",
                 false)?;
             let ciphertext_2 = util::xor(&keystream2, &plaintext_encoded)?;
+
 
             let msg2 = Message2 {
                 ephemeral_key_r : self.0.x_r.as_bytes().to_vec(),
@@ -584,7 +585,6 @@ impl PartyR<Msg2Sender> {
 
             let msg2_seq = util::serialize_message_2(&msg2)?;
 
-           
 
             Ok((msg2_seq, 
                 PartyR(Msg3Receiver {

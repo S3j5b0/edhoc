@@ -125,7 +125,7 @@ fn main() {
     /// Responder receiving and handling message 3, and generating message4 and sck rck
     ///////////////////////////////////////////////////////////////////// */
     
-    let (msg3verifier, r_kid) = match  msg3_receiver.handle_message_3(msg3_bytes) {
+    let (msg3verifier, r_kid) = match  msg3_receiver.unpack_message_2_return_kid(msg3_bytes) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Error during  {}", s)
         }

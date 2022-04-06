@@ -83,9 +83,6 @@ pub fn serialize_message_2(msg: &Message2) -> Result<Vec<u8>> {
     let c_r_and_ciphertext = [msg.c_r.clone(), msg.ciphertext2.clone()].concat();
 
 
-
-
-  //  println!("tuple before encode {:?}", c_r_and_ciphertext);
 let encoded = (
     Bytes::new(&msg.ephemeral_key_r),
     Bytes::new(&c_r_and_ciphertext),
