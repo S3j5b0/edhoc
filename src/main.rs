@@ -110,7 +110,7 @@ fn main() {
 
     println!("initiator unpacked responders kid: {:?}", r_kid);
 
-    let msg3_sender = match msg2_verifier.verify_message_2(&r_static_pub.as_bytes().to_vec()) {
+    let msg3_sender = match msg2_verifier.verify_message_2(r_static_pub.as_bytes()) {
         Err(OwnError(b)) => panic!("Send these bytes: {:?}", &b),
         Ok(val) => val, };
 
@@ -125,7 +125,7 @@ fn main() {
     /// Responder receiving and handling message 3, and generating message4 and sck rck
     ///////////////////////////////////////////////////////////////////// */
     
-    let (msg3verifier, r_kid) = match  msg3_receiver.unpack_message_2_return_kid(msg3_bytes) {
+    let (msg3verifier, kid) = match  msg3_receiver.unpack_message_3_return_kid(msg3_bytes) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Error during  {}", s)
         }
@@ -135,7 +135,7 @@ fn main() {
         Ok(val) => val,
     };
 
-    let (msg4_sender, as_sck, as_rck, as_rk) = match msg3verifier.verify_message_3(&i_static_pub.as_bytes().to_vec())
+    let (msg4_sender, as_sck, as_rck, as_rk) = match msg3verifier.verify_message_3(i_static_pub.as_bytes())
     {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Error during  {}", s)
@@ -146,9 +146,9 @@ fn main() {
         Ok(val) => val,
     };
 
-    ///////
+     /*///////////////////////////////////////////////////////////////////////////
     /// now the AS uses the kid to retrieve the right static public key
-    /// ///////////
+    ///////////////////////////////////////////////////////////////////// */
 
 
 
@@ -164,12 +164,12 @@ fn main() {
         };
         println!("msg4 {}", msg4_bytes.len());
 
-        /*///////////////////////////////////////////////////////////////////////////
-    /// Initiator receiving and handling message 4, and generati  sck and rck. Then all is done
+    /*///////////////////////////////////////////////////////////////////////////
+    /// Initiator receiving and handling message 4, and generate  sck and rck. Then all is done
     ///////////////////////////////////////////////////////////////////// */
 
     let (ed_sck, ed_rck,ed_rk) =
-    match msg4_receiver_verifier.receive_message_4(msg4_bytes) {
+    match msg4_receiver_verifier.handle_message_4(msg4_bytes) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Received error msg: {}", s)
         }

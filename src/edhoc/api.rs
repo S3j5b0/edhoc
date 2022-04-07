@@ -324,7 +324,6 @@ impl PartyI<Msg3Sender> {
 
         // Constructing ciphertext:
         let ciphertext_3 = util::aead_seal(&k_3, &iv_3, &p, &ad)?;
-        println!("cipher3 {}", ciphertext_3.len());
         let ciphertext_3_cpy = ciphertext_3.clone();
         let msg_3 = Message3 {ciphertext: ciphertext_3};
         let msg_3_seq = util::serialize_message_3(&msg_3)?;
@@ -367,7 +366,7 @@ pub struct Msg4ReceiveVerify {
 }
 
 impl PartyI<Msg4ReceiveVerify> {
-    pub fn receive_message_4(
+    pub fn handle_message_4(
         self,
         msg4_seq : Vec<u8>,
     ) -> Result<(Vec<u8>, Vec<u8>,Vec<u8>), OwnOrPeerError> {
@@ -611,7 +610,7 @@ pub struct Msg3Receiver {
 
 impl PartyR<Msg3Receiver> {
     /// Returns the kid of the other party, and the state to verify
-    pub fn handle_message_3(
+    pub fn unpack_message_3_return_kid(
         self,
         msg_3_seq: Vec<u8>,
     ) -> Result<(PartyR<Msg3verifier>, Vec<u8>), OwnOrPeerError> {
@@ -796,230 +795,3 @@ impl PartyR<Msg4Sender> {
         Ok(msg4_seq)
     }
 }
-/*
-#[cfg(test)]
-mod tests {
-    use super::super::test_vectors::*;
-    use super::*;
-
-    const SUITE_MSG: [u8; 27] = [
-        0x20, 0x78, 0x18, 0x43, 0x69, 0x70, 0x68, 0x65, 0x72, 0x20, 0x73,
-        0x75, 0x69, 0x74, 0x65, 0x20, 0x75, 0x6E, 0x73, 0x75, 0x70, 0x70,
-        0x6F, 0x72, 0x74, 0x65, 0x64,
-    ];
-    const CBOR_MSG: [u8; 23] = [
-        0x20, 0x75, 0x45, 0x72, 0x72, 0x6F, 0x72, 0x20, 0x70, 0x72, 0x6F,
-        0x63, 0x65, 0x73, 0x73, 0x69, 0x6E, 0x67, 0x20, 0x43, 0x42, 0x4F,
-        0x52,
-    ];
-
-    fn successful_run(r#type: isize) -> (Vec<u8>, Vec<u8>) {
-        // Party U ------------------------------------------------------------
-        let msg1_sender = PartyI::new(
-            C_U.to_vec(),
-            EPH_U_PRIVATE,
-            &AUTH_U_PRIVATE,
-            &AUTH_U_PUBLIC,
-            KID_U.to_vec(),
-        );
-        let (msg1_bytes, msg2_receiver) =
-            msg1_sender.generate_message_1(r#type).unwrap();
-
-        // Party V ------------------------------------------------------------
-
-        let msg1_receiver = PartyR::new(
-            C_V.to_vec(),
-            EPH_V_PRIVATE,
-            &AUTH_V_PRIVATE,
-            &AUTH_V_PUBLIC,
-            KID_V.to_vec(),
-        );
-        let msg2_sender = msg1_receiver.handle_message_1(msg1_bytes).unwrap();
-        let (msg2_bytes, msg3_receiver) =
-            msg2_sender.generate_message_2().unwrap();
-
-        // Party U ------------------------------------------------------------
-        let (_v_kid, msg2_verifier) =
-            msg2_receiver.extract_peer_kid(msg2_bytes).unwrap();
-        let msg3_sender =
-            msg2_verifier.verify_message_2(&AUTH_V_PUBLIC).unwrap();
-        let (msg3_bytes, u_master_secret, u_master_salt) =
-            msg3_sender.generate_message_3().unwrap();
-
-        // Party V ------------------------------------------------------------
-        let (_u_kid, msg3_verifier) =
-            msg3_receiver.extract_peer_kid(msg3_bytes).unwrap();
-        let (v_master_secret, v_master_salt) =
-            msg3_verifier.verify_message_3(&AUTH_U_PUBLIC).unwrap();
-
-        // Verification -------------------------------------------------------
-        assert_eq!(u_master_secret, v_master_secret);
-        assert_eq!(u_master_salt, v_master_salt);
-
-        (u_master_secret, u_master_salt)
-    }
-
-    #[test]
-    fn normal_run() {
-        // Using the same parameters as test vectors, should give same results
-        let (master_secret, master_salt) = successful_run(1);
-        assert_eq!(&MASTER_SECRET, &master_secret[..]);
-        assert_eq!(&MASTER_SALT, &master_salt[..]);
-
-        // These just need to end up successful
-        successful_run(0);
-        successful_run(2);
-        successful_run(3);
-    }
-    
-
-    #[test]
-    fn unsupported_suite() {
-        // Party U ------------------------------------------------------------
-
-        let msg1_sender = PartyI::new(
-            C_U.to_vec(),
-            AUTH_U_PRIVATE,
-            &AUTH_U_PRIVATE,
-            &AUTH_U_PUBLIC,
-            KID_U.to_vec(),
-        );
-        let (mut msg1_bytes, _) = msg1_sender.generate_message_1(1).unwrap();
-        // Change the suite
-        msg1_bytes[1] = 0x01;
-
-        // Party V ------------------------------------------------------------
-        let msg1_receiver = PartyR::new(
-            C_V.to_vec(),
-            AUTH_V_PRIVATE,
-            &AUTH_V_PRIVATE,
-            &AUTH_V_PUBLIC,
-            KID_V.to_vec(),
-        );
-        let _ = match msg1_receiver.handle_message_1(msg1_bytes) {
-            Err(OwnError(b)) => assert_eq!(&SUITE_MSG, &b[..]),
-            Ok(_) => panic!("Should have resulted in a suite error"),
-        };
-    }
-
-    #[test]
-    fn only_own_error() {
-        // Party U ------------------------------------------------------------
-        let msg1_sender = PartyI::new(
-            C_U.to_vec(),
-            AUTH_U_PRIVATE,
-            &AUTH_U_PRIVATE,
-            &AUTH_U_PUBLIC,
-            KID_U.to_vec(),
-        );
-        let (mut msg1_bytes, _) = msg1_sender.generate_message_1(1).unwrap();
-        // Garble the message
-        msg1_bytes[0] = 0xFF;
-
-        // Party V ------------------------------------------------------------
-        let msg1_receiver = PartyR::new(
-            C_V.to_vec(),
-            AUTH_V_PRIVATE,
-            &AUTH_V_PRIVATE,
-            &AUTH_V_PUBLIC,
-            KID_V.to_vec(),
-        );
-        let _ = match msg1_receiver.handle_message_1(msg1_bytes) {
-            Err(OwnError(b)) => assert_eq!(&CBOR_MSG, &b[..]),
-            Ok(_) => panic!("Should have resulted in a CBOR error"),
-        };
-    }
-
-    #[test]
-    fn both_own_error() {
-        // Party U ------------------------------------------------------------
-        let msg1_sender = PartyI::new(
-            C_U.to_vec(),
-            AUTH_U_PRIVATE,
-            &AUTH_U_PRIVATE,
-            &AUTH_U_PUBLIC,
-            KID_U.to_vec(),
-        );
-        let (msg1_bytes, msg2_receiver) =
-            msg1_sender.generate_message_1(1).unwrap();
-
-        // Party V ------------------------------------------------------------
-        let msg1_receiver = PartyR::new(
-            C_V.to_vec(),
-            AUTH_V_PRIVATE,
-            &AUTH_V_PRIVATE,
-            &AUTH_V_PUBLIC,
-            KID_V.to_vec(),
-        );
-        let msg2_sender = msg1_receiver.handle_message_1(msg1_bytes).unwrap();
-        let (mut msg2_bytes, _) = msg2_sender.generate_message_2().unwrap();
-        // Garble the message
-        msg2_bytes[0] = 0xFF;
-
-        // Party U ------------------------------------------------------------
-        match msg2_receiver.extract_peer_kid(msg2_bytes) {
-            Err(OwnOrPeerError::OwnError(b)) => assert_eq!(&CBOR_MSG, &b[..]),
-            _ => panic!("Should have resulted in a CBOR error"),
-        };
-    }
-
-    #[test]
-    fn both_peer_error() {
-        // Party U ------------------------------------------------------------
-        let msg1_sender = PartyI::new(
-            C_U.to_vec(),
-            AUTH_U_PRIVATE,
-            &AUTH_U_PRIVATE,
-            &AUTH_U_PUBLIC,
-            KID_U.to_vec(),
-        );
-        let (mut msg1_bytes, msg2_receiver) =
-            msg1_sender.generate_message_1(1).unwrap();
-        // Garble the message
-        msg1_bytes[0] = 0xFF;
-
-        // Party V ------------------------------------------------------------
-        let msg1_receiver = PartyR::new(
-            C_V.to_vec(),
-            AUTH_V_PRIVATE,
-            &AUTH_V_PRIVATE,
-            &AUTH_V_PUBLIC,
-            KID_V.to_vec(),
-        );
-        // Extract the error message to send
-        let msg2_err_bytes = match msg1_receiver.handle_message_1(msg1_bytes) {
-            Ok(_) => panic!("Should have resulted in a CBOR error"),
-            Err(OwnError(b)) => b,
-        };
-
-        // Party U ------------------------------------------------------------
-        match msg2_receiver.extract_peer_kid(msg2_err_bytes) {
-            Err(OwnOrPeerError::PeerError(s)) => {
-                assert_eq!("Error processing CBOR", &s);
-            }
-            _ => panic!("Should have resulted in a peer error"),
-        };
-    }
-
-    /// This is here to test that the ECDH library we use complies with the
-    /// test vectors.
-    #[test]
-    fn shared_secret() {
-        let mut eph_u_private = [0; 32];
-        eph_u_private.copy_from_slice(&EPH_U_PRIVATE);
-        let u_priv = StaticSecret::from(eph_u_private);
-        let mut eph_v_private = [0; 32];
-        eph_v_private.copy_from_slice(&EPH_V_PRIVATE);
-        let v_priv = StaticSecret::from(eph_v_private);
-
-        let u_pub = PublicKey::from(&u_priv);
-        assert_eq!(&X_U, u_pub.as_bytes());
-        let v_pub = PublicKey::from(&v_priv);
-        assert_eq!(&X_V, v_pub.as_bytes());
-
-        assert_eq!(&SHARED_SECRET, u_priv.diffie_hellman(&v_pub).as_bytes());
-        assert_eq!(&SHARED_SECRET, v_priv.diffie_hellman(&u_pub).as_bytes());
-    }
-}
-*/
-
