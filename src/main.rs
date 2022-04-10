@@ -78,6 +78,8 @@ fn main() {
         },
         Ok(val) => val,
     };
+    println!("deveui {:?}", devui);
+    println!("appeui {:?}",appeui);
 
     // AS should now validate deveui and appeui
     let (msg2_bytes,msg3_receiver) = match msg2_sender.generate_message_2() {
