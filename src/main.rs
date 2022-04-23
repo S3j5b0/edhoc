@@ -9,7 +9,7 @@ use rand::{rngs::StdRng, Rng,SeedableRng};
 
 use x25519_dalek_ng::{PublicKey,StaticSecret};
 
-use rand_core::{OsRng, RngCore};
+use rand_core::{OsRng};
 
 
 const SUITE_I: u8 = 3;
@@ -17,8 +17,6 @@ const METHOD_TYPE_I : u8 = 0;
 
 
 fn main() {
-
-
     /*
     Parti I generate message 1
     */
@@ -39,9 +37,9 @@ fn main() {
     let appeui = [0,1,2,3,4,5,6,7].to_vec();
 
 
-    let i_kid = [0xA2].to_vec();
+    let i_kid = [0xA2].to_vec(); 
     let msg1_sender =
-        PartyI::new(deveui,appeui, i_priv, i_static_priv, i_static_pub, i_kid);
+        PartyI::new(deveui,Some(appeui), i_priv, i_static_priv, i_static_pub, i_kid);
 
 
     let (msg1_bytes, msg2_receiver) =
@@ -49,10 +47,6 @@ fn main() {
         // since the protocol hasn't started yet.
         msg1_sender.generate_message_1(METHOD_TYPE_I, SUITE_I).unwrap();
  
-    println!("msg1 {}", msg1_bytes.len());
-
-
-  //  let msg_1_struct : Message1= util::deserialize_message_1(&msg1_bytes).unwrap();
 
     /*
     /// Party R handle message 1
@@ -78,11 +72,10 @@ fn main() {
         },
         Ok(val) => val,
     };
-    println!("deveui {:?}", devui);
-    println!("appeui {:?}",appeui);
+
 
     // AS should now validate deveui and appeui
-    let (msg2_bytes,msg3_receiver) = match msg2_sender.generate_message_2() {
+    let (msg2_bytes,msg3_receiver) = match msg2_sender.generate_message_2(appeui.unwrap()) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Received error msg: {}", s)
         }
@@ -92,7 +85,6 @@ fn main() {
         Ok(val) => val,
     };
 
-    println!("msg2 {}", msg2_bytes.len());
 
     /*///////////////////////////////////////////////////////////////////////////
     /// Initiator receiving and handling message 2, and then generating message 3, and the rck/sck
@@ -110,7 +102,6 @@ fn main() {
         Ok(val) => val,
     };
 
-    println!("initiator unpacked responders kid: {:?}", r_kid);
 
     let msg3_sender = match msg2_verifier.verify_message_2(r_static_pub.as_bytes()) {
         Err(OwnError(b)) => panic!("Send these bytes: {:?}", &b),
@@ -121,7 +112,6 @@ fn main() {
             Err(OwnError(b)) => panic!("Send these bytes: {}", hexstring(&b)),
             Ok(val) => val,
         };
-    println!("msg3 {}", msg3_bytes.len());
 
     /*///////////////////////////////////////////////////////////////////////////
     /// Responder receiving and handling message 3, and generating message4 and sck rck

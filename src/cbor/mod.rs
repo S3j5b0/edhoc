@@ -1,8 +1,7 @@
 //! Helpful functionality around the `serde_cbor` crate.
 
 use alloc::vec::Vec;
-use serde::Serialize;
-
+use serde::ser::{Serialize, Serializer, SerializeMap};
 #[cfg_attr(tarpaulin, skip)]
 mod error;
 pub use error::CborError;
@@ -13,6 +12,26 @@ pub type Result<T> = core::result::Result<T, CborError>;
 /// Serializes an object into CBOR.
 pub fn encode(object: impl Serialize) -> Result<Vec<u8>> {
     serialize(object, 0)
+}
+
+
+struct IdCred(u8);
+
+impl Serialize for IdCred {
+    fn serialize<S>(&self, s: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        let mut map = s.serialize_map(Some(1))?;
+        map.serialize_entry(&4, &self.0)?;
+        map.end()
+    }
+}
+pub fn build_map(kid: &[u8]) -> Result<Vec<u8>> {
+    match serde_cbor::to_vec(&IdCred(kid[0])) {
+        Ok(b ) => Ok(b),
+        _ => Err(CborError::TooManyItems)
+    }
 }
 
 /// Serializes an object into a sequence of CBOR encoded data items.
@@ -86,6 +105,8 @@ pub fn array_to_map(bytes: &mut [u8]) -> Result<()> {
         }
     }
 }
+
+
 
 /// Changes the given CBOR bytes from a map of n key/value pairs to an array
 /// of n * 2 items.

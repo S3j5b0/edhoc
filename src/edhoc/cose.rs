@@ -2,6 +2,7 @@
 
 use alloc::vec::Vec;
 use serde_bytes::Bytes;
+use serde::ser::{Serialize, Serializer, SerializeMap};
 
 use super::Result;
 use crate::cbor;
@@ -23,7 +24,7 @@ use crate::cbor;
 pub fn build_kdf_context(
     algorithm_id: &str,
     key_data_length: usize,
-    other: &[u8],
+    th: &[u8],
 ) -> Result<Vec<u8>> {
     // (keyDataLength, protected, placeholder (other))
     let supp_pub_info = (key_data_length, Bytes::new(&[]), 0);
@@ -48,7 +49,7 @@ pub fn build_kdf_context(
     // Remove the placeholder item
     kdf_arr.pop();
     // Insert the transcript hash, which is already in its CBOR encoding
-    kdf_arr.extend(other);
+    kdf_arr.extend(th);
 
     Ok(kdf_arr)
 }
@@ -68,11 +69,12 @@ pub struct CoseKey {
 /// This is specific to our use case where we only have Ed25519 public keys,
 /// which are Octet Key Pairs (OKP) in COSE and represented as a single
 /// x-coordinate.
-pub fn serialize_cred_x(x: &[u8], kid : &Vec<u8>) -> Result<Vec<u8>> { //
+pub fn serialize_cred_x(x: &[u8], kid : &Vec<u8>) -> Result<Vec<u8>> {
     // Pack the data into a structure that nicely serializes almost into
     // what we want to have as the actual bytes for the COSE_Key.
-    // ( kid key, kid value, COSE_key key, COSE_key value)
-    let raw_key = (1, kid, 2, Bytes::new(x));
+    // (kty key, kty value, crv key, crv value,
+    //  x-coordinate key, x-coordinate value)
+    let raw_key = (1,1,2, 2, -1, kid[0], -2, Bytes::new(x));
     // Get the byte representation of it
     let mut bytes = cbor::encode(raw_key)?;
     // This is a CBOR array, but we want a map
@@ -82,19 +84,11 @@ pub fn serialize_cred_x(x: &[u8], kid : &Vec<u8>) -> Result<Vec<u8>> { //
 }
 
 
-
 /// Returns the COSE header map for the given `kid`.
 pub fn build_id_cred_x(kid: &[u8]) -> Result<Vec<u8>> {
-    // Pack the data into a structure that nicely serializes almost into
-    // what we want to have as the actual bytes for the COSE header map.
-    // (kid key, kid value)
-    let id_cred_x = (4, Bytes::new(kid));
-    // Get the byte representation of it
-    let mut bytes = cbor::encode(id_cred_x)?;
-    // This is a CBOR array, but we want a map
-    cbor::array_to_map(&mut bytes)?;
+    let map = cbor::build_map(kid)?;
+    Ok(map)
 
-    Ok(bytes)
 }
 
 /// Returns the `COSE_Encrypt0` structure used as associated data in the AEAD.
@@ -107,69 +101,4 @@ pub fn build_ad(th_i: &[u8]) -> Result<Vec<u8>> {
     ad_arr.extend(th_i);
 
     Ok(ad_arr)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::test_vectors::*;
-    use super::*;
-
-
-
-    #[test]
-    fn context_generation() {
-        let context_bytes = build_kdf_context("10", 128, &TH_2).unwrap();
-        assert_eq!(&INFO_K_2[..], &context_bytes[..]);
-        let context_bytes =
-            build_kdf_context("IV-GENERATION", 104, &TH_2).unwrap();
-        assert_eq!(&INFO_IV_2[..], &context_bytes[..]);
-
-        let context_bytes = build_kdf_context("10", 128, &TH_3).unwrap();
-        assert_eq!(&INFO_K_3[..], &context_bytes[..]);
-        let context_bytes =
-            build_kdf_context("IV-GENERATION", 104, &TH_3).unwrap();
-        assert_eq!(&INFO_IV_3[..], &context_bytes[..]);
-
-        let context_bytes =
-            build_kdf_context("OSCORE Master Secret", 128, &TH_4).unwrap();
-        assert_eq!(&INFO_MASTER_SECRET[..], &context_bytes[..]);
-        let context_bytes =
-            build_kdf_context("OSCORE Master Salt", 64, &TH_4).unwrap();
-        assert_eq!(&INFO_MASTER_SALT[..], &context_bytes[..]);
-    }
-/*
-should test cred_x serialisation instead
-    #[test]
-    fn key_encode() {
-        assert_eq!(
-            &CRED_U[..],
-            &serialize_cose_key(&AUTH_U_PUBLIC).unwrap()[..]
-        );
-        assert_eq!(
-            &CRED_V[..],
-            &serialize_cose_key(&AUTH_V_PUBLIC).unwrap()[..]
-        );
-    }
-*/
-    #[test]
-    fn encode_id_cred_x() {
-        let bytes = build_id_cred_x(&KID_U).unwrap();
-        assert_eq!(&ID_CRED_U[..], &bytes[..]);
-        let bytes = build_id_cred_x(&KID_V).unwrap();
-        assert_eq!(&ID_CRED_V[..], &bytes[..]);
-    }
-
-    #[test]
-    fn encrypt_0() {
-        assert_eq!(&A_2[..], &build_ad(&TH_2).unwrap()[..]);
-
-        assert_eq!(&A_3[..], &build_ad(&TH_3).unwrap()[..]);
-    }
-
-    fn build_keypair(private: &[u8], public: &[u8]) -> Vec<u8> {
-        let mut keypair = private.to_vec();
-        keypair.extend(public);
-
-        keypair
-    }
 }

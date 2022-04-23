@@ -28,26 +28,40 @@ pub const CONNECTION_IDENTIFIER_LENGTH: usize = 8;
 /// EDHOC `message_1`.
 #[derive(Debug, PartialEq)]
 pub struct Message1 {
-    pub r#type: u8,
+    pub method: u8,
     pub suite: u8,
     pub x_i: Vec<u8>,
-    pub deveui: Vec<u8>,
-    pub appeui: Vec<u8>
+    pub c_i : Vec<u8>,
+    pub ead: Option<Vec<u8>>,
 }
 
 /// Serializes EDHOC `message_1`.
 pub fn serialize_message_1(msg: &Message1) -> Result<Vec<u8>> {
     // Pack the data into a structure that nicely serializes almost into
     // what we want to have as the actual bytes for the EDHOC message
-    let raw_msg = (
-        msg.r#type,
+
+    if msg.ead == None {
+    let raw_msg  = (
+        msg.method,
         msg.suite,
         Bytes::new(&msg.x_i),
-        Bytes::new(&msg.deveui),
-        Bytes::new(&msg.appeui)
+        Bytes::new(&msg.c_i),
     );
-
     Ok(cbor::encode_sequence(raw_msg)?)
+    } else {
+        let ead = &msg.ead.as_ref().unwrap();
+        let raw_msg  = (
+            msg.method,
+            msg.suite,
+            Bytes::new(&msg.x_i),
+            Bytes::new(&msg.c_i),
+            Bytes::new(ead),
+        );
+
+        Ok(cbor::encode_sequence(raw_msg)?)
+    }
+
+    
 }
 
 /// Deserializes EDHOC `message_1`.
@@ -61,11 +75,11 @@ pub fn deserialize_message_1(msg: &[u8]) -> Result<Message1> {
     // On success, just move the items into the "nice" message structure
 
     Ok(Message1 {
-        r#type: raw_msg.0,
+        method: raw_msg.0,
         suite: raw_msg.1,
         x_i: raw_msg.2.into_vec(),
-        deveui: raw_msg.3.into_vec(),
-        appeui: raw_msg.4.into_vec(),
+        c_i : raw_msg.3.into_vec(),
+        ead: Some(raw_msg.4.into_vec()),
     })
 }
 
@@ -80,12 +94,13 @@ pub struct Message2 {
 
 /// Serializes EDHOC `message_2`.
 pub fn serialize_message_2(msg: &Message2) -> Result<Vec<u8>> {
-    let c_r_and_ciphertext = [msg.c_r.clone(), msg.ciphertext2.clone()].concat();
+    let c_r_and_ciphertext = [msg.ephemeral_key_r.clone(), msg.ciphertext2.clone()].concat();
 
 
 let encoded = (
-    Bytes::new(&msg.ephemeral_key_r),
     Bytes::new(&c_r_and_ciphertext),
+    Bytes::new(&msg.c_r),
+
 
 );
     Ok(cbor::encode_sequence(encoded)?)
@@ -95,17 +110,17 @@ let encoded = (
 pub fn deserialize_message_2(msg: &[u8]) -> Result<Message2> { //Result<Message2>
     let mut temp = Vec::with_capacity(msg.len() + 1);
     // First, attempt to decode the variant without c_u
-    let (x_r, c_r_and_cipher2) = cbor::decode_sequence::<(ByteBuf, ByteBuf)>(msg, 2, &mut temp)?;
+    let (key_and_cipher2,c_r, ) = cbor::decode_sequence::<(ByteBuf, ByteBuf)>(msg, 2, &mut temp)?;
 
             
 
-    let connection_id = &c_r_and_cipher2[..CONNECTION_IDENTIFIER_LENGTH];
-    let ciphertext2 = &c_r_and_cipher2[CONNECTION_IDENTIFIER_LENGTH..];
+    let ephemeral_key_r = &key_and_cipher2[..32];
+    let ciphertext2 = &key_and_cipher2[32..];
 
 
     Ok(Message2 {
-        ephemeral_key_r: x_r.to_vec(),
-        c_r: connection_id.to_vec(),
+        ephemeral_key_r: ephemeral_key_r.to_vec(),
+        c_r: c_r.to_vec(),
         ciphertext2: ciphertext2.to_vec(),
         })
 
@@ -115,10 +130,10 @@ pub fn deserialize_message_2(msg: &[u8]) -> Result<Message2> { //Result<Message2
 
 // derive_prk
 //deriving PRK's from some salt, and a key (shared key)
-pub fn derive_prk(
+pub fn extract_prk(
     salt: Option<&[u8]>, 
     ikm: &[u8]
-) -> Result<(Vec<u8>,Hkdf<Sha256>)> {
+) -> Result<(Vec<u8>, Hkdf<Sha256>)> {
     // This is the extract step, resulting in the pseudorandom key (PRK)
     let (prk, hkdf) = Hkdf::<Sha256>::extract(salt, ikm);
     let prk_array = prk.to_vec();
@@ -236,25 +251,32 @@ pub fn HKDFextract(
 ///   e.g. "10" for AES-CCM-16-64-128.
 /// * `key_data_length` - The desired key length in bits.
 /// * `other` - Typically a transcript hash.
-/// * `secret` - The ECDH shared secret to use as input keying material.
-pub fn edhoc_key_derivation(
-    algorithm_id: &str,
+/// * `prk` - The prk to use as input keying material.
+pub fn edhoc_kdf(
+    prk: &Hkdf<Sha256>,
+    th: &[u8],
+    label: &str,
+    context: &[u8],
     key_data_length: usize,
-    other: &[u8],
-    secret: &[u8],
+    
 ) -> Result<Vec<u8>> {
     // We use the ECDH shared secret as input keying material
-    let ikm = secret;
-    // Since we have asymmetric authentication, the salt is 0
-    let salt = None;
-    // For the Expand step, take the COSE_KDF_Context structure as info
-    let info = cose::build_kdf_context(algorithm_id, key_data_length, other)?;
 
-    // This is the extract step, resulting in the pseudorandom key (PRK)
-    let h = Hkdf::<Sha256>::new(salt, ikm);
+    // For the Expand step, take the COSE_KDF_Context structure as info
+    let info = (
+        label,
+        Bytes::new(context),
+        key_data_length,
+    );
+    let mut seq = th.to_vec();
+    let info_encoded =  cbor::encode_sequence(info)?;
+    seq.extend(&info_encoded);
+    
+
     // Expand the PRK to the desired length output keying material (OKM)
-    let mut okm = vec![0; key_data_length / 8];
-    h.expand(&info, &mut okm)?;
+    let mut okm = vec![0; key_data_length];
+
+    prk.expand(&seq, &mut okm)?;
 
 
 
@@ -272,8 +294,8 @@ pub fn edhoc_key_derivation(
 /// * `cred_x` 
 /// 
 
-pub fn create_macwith_expand(
-    prk: Hkdf<Sha256>,
+pub fn create_mac_with_kdf(
+    prk: &Hkdf<Sha256>,
     maclength: usize,
     th: &[u8],
     mac_identifier : &str,
@@ -281,20 +303,12 @@ pub fn create_macwith_expand(
     cred_x : Vec<u8>,
 ) -> Result<Vec<u8>> {
 
-    // For the Expand step, take the COSE_KDF_Context structure as info
-    let info = (
-        th,
-        mac_identifier,
-        id_cred_x,
-        cred_x,
-    );
-   let info_encoded =  cbor::encode_sequence(info)?;
+    // prepare context
+    let mut context = Vec::new();
+    context.extend(id_cred_x.clone());
+    context.extend(cred_x);
+    edhoc_kdf(prk, &th, mac_identifier,&context, maclength)
 
-    // Expand the PRK to the desired length output keying material (OKM)
-    let mut okm = vec![0; maclength /8];
-
-    prk.expand(&info_encoded, &mut okm)?;
-    Ok(okm)
 }
 
 
@@ -354,21 +368,20 @@ pub fn tryexpand(
     prk.expand(&info_encoded, &mut okm)?;
     Ok(okm)
 }
-
-pub fn tmp_encode(
-    one : Vec<u8>,
-    two : Vec<u8>,
+pub fn extract_expand(
+    ikm: &[u8],
+    salt: &[u8],
+    label : &str,
+    length : usize,
 ) -> Result<Vec<u8>> {
+    let hk = Hkdf::<Sha256>::new(Some(&salt), &ikm);
+    
 
-    let info = (
-        one,
-        two
-    );
-
-   let info_encoded =  cbor::encode_sequence(info)?;
-
-    Ok(info_encoded)
+    let mut okm = vec![0;  length];
+    hk.expand(label.as_bytes(), &mut okm)?;
+    Ok(okm)
 }
+
 
 // Xor function, for message 2
 pub fn xor(a : &Vec<u8>, b:&Vec<u8>) -> Result<Vec<u8>>{
@@ -392,12 +405,14 @@ pub fn xor(a : &Vec<u8>, b:&Vec<u8>) -> Result<Vec<u8>>{
 /// * `th_4` - TH_4.
 /// * `secret` - The ECDH shared secret to use as input keying material.
 pub fn edhoc_exporter(
-    label: &str,
-    length: usize,
+    prk_4: &Hkdf<Sha256>,
     th_4: &[u8],
-    secret: &[u8],
+    label: &str,
+    context : &[u8],
+    length: usize,
+    
 ) -> Result<Vec<u8>> {
-    edhoc_key_derivation(label,  length, th_4, secret)
+    edhoc_kdf(prk_4,th_4,label,context,length )
 }
 
 /// Calculates the transcript hash of the second message.
@@ -407,18 +422,19 @@ pub fn compute_th_2(
     responder_ephemeral_pk: PublicKey,
 ) -> Result<Vec<u8>> {
 
-    let msg_1_hash = h(&message_1)?;
+    let mut msg_1_hash = h(&message_1)?;
     let pk_bytes = &responder_ephemeral_pk.to_bytes();
 
     let hash_data = cbor::encode_sequence((
-        c_r,
-        msg_1_hash,
-        pk_bytes
+        Bytes::new(pk_bytes),
+        Bytes::new(&c_r),
     ))?;
-    // Create a sequence of CBOR items from the data
+    msg_1_hash.extend(&hash_data);
 
+
+    // Create a sequence of CBOR items from the data
     // Return the hash of this
-    h(&hash_data)
+    h(&msg_1_hash)
 }
 
 /// Calculates the transcript hash of the third message.
@@ -520,3 +536,107 @@ pub fn aead_open(
 }
 
 
+#[cfg(test)]
+
+mod tests {
+
+use super::super::test_vectors::*;
+use super::*;
+#[test]
+
+fn test_serialize_message_1() {
+
+
+    let msg1 = Message1 {
+        method: 3,
+        suite: 0,
+        x_i : I_EPHEMERAL_PK.to_vec(),
+        c_i : [12].to_vec(),
+        ead : None,
+    };
+    
+    let serial = serialize_message_1(&msg1).unwrap();
+
+    assert_eq!(serial,MSG1.to_vec());
+}
+
+#[test]
+
+fn test_serialize_message_2() {
+
+
+    let msg2 = Message2 {
+        ephemeral_key_r : R_EPHEMERAL_PK.to_vec(),
+        c_r : C_R.to_vec(),
+        ciphertext2 : CIPHERTEXT_2.to_vec(),
+    };
+    
+    let serial = serialize_message_2(&msg2).unwrap();
+
+    assert_eq!(serial,MSG2.to_vec());
+}
+#[test]
+
+fn prk_generation() {
+    let (prk_2e,_) = extract_prk(None, &SHARED_SECRET_0).unwrap();
+    assert_eq!(prk_2e,PRK2E.to_vec());
+
+    let (prk3e2m,_) = extract_prk(Some(&prk_2e), &SHARED_SECRET_1.to_vec()).unwrap();
+
+    assert_eq!(prk3e2m, PRK3EM.to_vec());
+
+    let (prk_4x3m,_) = extract_prk(Some(&prk3e2m), &SHARED_SECRET_2).unwrap();
+
+    assert_eq!(prk_4x3m, PRK4XM.to_vec());
+}
+
+#[test]
+
+fn mac_2() {
+    let (prk_2e,_) = extract_prk(None, &SHARED_SECRET_0).unwrap();
+
+    let (_,prk_3e2m_hkdf) = extract_prk(Some(&prk_2e), &SHARED_SECRET_1.to_vec()).unwrap();
+    let id_cred_x = cose::build_id_cred_x(&[5]).unwrap();
+
+
+    
+    assert_eq!(id_cred_x, ID_CRED_R);
+
+
+    let th_2 = h(&TH_2_RAW_INPUT).unwrap();
+
+
+    assert_eq!(&th_2, &TH_2_CBOR);
+    let mac_2 = create_mac_with_kdf(&prk_3e2m_hkdf, 
+        EDHOC_MAC /8, 
+        &th_2, 
+        "MAC_2", 
+        id_cred_x, 
+        CRED_R.to_vec()).unwrap();
+
+
+    assert_eq!(mac_2, &MAC_2)
+}
+
+#[test]
+
+fn master_secret() {
+    let (prk_2e,_) = extract_prk(None, &SHARED_SECRET_0).unwrap();
+
+    let (prk3e2m,_) = extract_prk(Some(&prk_2e), &SHARED_SECRET_1.to_vec()).unwrap();
+
+
+    let (_,prk_4x3m_hkdf) = extract_prk(Some(&prk3e2m), &SHARED_SECRET_2).unwrap();
+
+    let master_secret = edhoc_exporter(
+        &prk_4x3m_hkdf,
+        &TH_4_CBOR,
+        "OSCORE_Master_Secret",
+        b"",
+        CCM_KEY_LEN/8, //going from bits to bytes
+    ).unwrap();
+
+    assert_eq!(master_secret,MASTER_SECRET);
+}
+
+}
