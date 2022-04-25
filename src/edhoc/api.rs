@@ -26,7 +26,7 @@ impl PartyIState for Msg4ReceiveVerify {}
 
 
 pub struct Msg1Sender {
-    ead: Option<Vec<u8>>,
+    ead_1: Option<Vec<u8>>,
     c_i : Vec<u8>,
     secret: StaticSecret,
     x_i: PublicKey,
@@ -48,7 +48,7 @@ impl PartyI<Msg1Sender> {
 
     pub fn new(
         c_i: Vec<u8>,
-        ead: Option<Vec<u8>>,
+        ead_1: Option<Vec<u8>>,
         ecdh_secret: [u8; 32],
         stat_priv: StaticSecret,
         stat_pub: PublicKey,
@@ -63,7 +63,7 @@ impl PartyI<Msg1Sender> {
 
         // Combine the authentication key pair for convenience
          PartyI(Msg1Sender {
-            ead,
+            ead_1,
             c_i,
             secret,
             x_i,
@@ -87,7 +87,7 @@ impl PartyI<Msg1Sender> {
             suite: suites,
             x_i: self.0.x_i.as_bytes().to_vec(), // sending PK as vector
             c_i : self.0.c_i,
-            ead : self.0.ead,
+            ead_1 : self.0.ead_1,
         };
         // Get CBOR sequence for message
         let msg_1_seq = util::serialize_message_1(&msg_1)?;
@@ -118,10 +118,10 @@ pub struct Msg2Receiver {
 
 impl PartyI<Msg2Receiver> {
     /// Returns the key ID of the other party's public authentication key, and the state for verification 
-    pub fn unpack_message_2_return_kid(
+    pub fn unpack_message_2_return_kid_ead(
         self,
         msg_2: Vec<u8>,
-    ) -> Result<(Vec<u8>, Vec<u8>, PartyI<Msg2Verifier>), OwnOrPeerError> {
+    ) -> Result<(Vec<u8>, Vec<u8>, Option<Vec<u8>>,PartyI<Msg2Verifier>), OwnOrPeerError> {
 
         util::fail_on_error_message(&msg_2)?;
 
@@ -133,16 +133,15 @@ impl PartyI<Msg2Receiver> {
         // Constructing shared secret for initiator 
         let mut x_r_bytes = [0; 32];
         x_r_bytes.copy_from_slice(&msg_2.ephemeral_key_r[..32]);
-        let r_public = x25519_dalek_ng::PublicKey::from(x_r_bytes);
+        let r_ephemeral_pk = x25519_dalek_ng::PublicKey::from(x_r_bytes);
 
 
-       let shared_secret_0 = self.0.i_ecdh_ephemeralsecret.diffie_hellman(&r_public);
+       let shared_secret_0 = self.0.i_ecdh_ephemeralsecret.diffie_hellman(&r_ephemeral_pk);
         
-       let connection_identifier_clone = msg_2.c_r.clone();
 
         // reconstructing keystream2
-
-        let th_2 = util::compute_th_2(self.0.msg_1_seq, &msg_2.c_r, r_public)?;
+        let c_r_cpy = msg_2.c_r.clone();
+        let th_2 = util::compute_th_2(self.0.msg_1_seq, &msg_2.c_r, r_ephemeral_pk)?;
         let (prk_2e,prk_2e_hkdf) = util::extract_prk(None, shared_secret_0.as_bytes())?;
 
 
@@ -151,36 +150,48 @@ impl PartyI<Msg2Receiver> {
                                             &th_2, 
                                             "KEYSTREAM_2",
                                             &[],
-                                            msg_2.ciphertext2.len(), 
+                                            msg_2.ciphertext_2.len(), 
                                             )?;
 
 
-        let decryptedlaintext = util::xor(&keystream2, &msg_2.ciphertext2)?;
+        let decryptedlaintext = util::xor(&keystream2, &msg_2.ciphertext_2)?;
 
-        let (r_kid,mac_2 ) = util::extract_plaintext(decryptedlaintext)?;
+        let (r_kid,mac_2,ead_2 ) = util::extract_plaintext(decryptedlaintext)?;
 
 
         Ok((
             r_kid.clone(),
-            connection_identifier_clone,
+            c_r_cpy,
+            ead_2.clone(),
             PartyI(Msg2Verifier {
                 i_ecdh_ephemeralsecret : self.0.i_ecdh_ephemeralsecret,
                 stat_priv: self.0.stat_priv,
                 stat_pub : self.0.stat_pub,
                 kid: self.0.kid,
-  
-                msg_2: msg_2,
-                mac_2: mac_2,
-                prk_2e: prk_2e,
-                th_2: th_2,
-                r_kid :r_kid,
-                r_ephemeral_pk: r_public,
+                msg_2,
+                mac_2,
+                ead_2,
+                prk_2e,
+                th_2,
+                r_kid,
+                r_ephemeral_pk,
 
 
             }),
         ))
 
     }
+
+    pub fn unpack_message_2_return_kid(
+        self,
+        msg_2: Vec<u8>,
+    ) -> Result<(Vec<u8>, Vec<u8>,PartyI<Msg2Verifier>), OwnOrPeerError> {
+        let (kid, c_r , _ead, msg2_receiver) = self.unpack_message_2_return_kid_ead(msg_2)?;
+
+        Ok((kid,c_r, msg2_receiver))
+    }
+
+
 }
 
 
@@ -191,9 +202,9 @@ pub struct Msg2Verifier {
     stat_priv : StaticSecret,
     stat_pub : PublicKey,
     kid: Vec<u8>,
-
     msg_2: Message2,
     mac_2: Vec<u8>,
+    ead_2 : Option<Vec<u8>>,
     prk_2e : Vec<u8>,
     th_2: Vec<u8>,
     r_kid: Vec<u8>,
@@ -224,7 +235,7 @@ impl PartyI<Msg2Verifier> {
 
         // generating prk_3
 
-        let (prk_3em,prk_3e2m_hkdf) = util::extract_prk(Some(&self.0.prk_2e)
+        let (prk_3e2m,prk_3e2m_hkdf) = util::extract_prk(Some(&self.0.prk_2e)
             ,shared_secret_1.as_bytes())?;
 
         
@@ -233,10 +244,11 @@ impl PartyI<Msg2Verifier> {
             &self.0.th_2, 
             "MAC_2", 
             id_cred_r, 
-            cred_r)?;
+            cred_r,
+            &self.0.ead_2)?;
       
         if self.0.mac_2 != mac_2{
-            Err(Error::BadMac)?;
+            return Err(Error::BadMac.into())
         }
         
 
@@ -247,8 +259,8 @@ impl PartyI<Msg2Verifier> {
             i_kid : self.0.kid,
             msg_2 : self.0.msg_2,
             th_2 : self.0.th_2,
-            prk_3e2m_hkdf : prk_3e2m_hkdf,
-            prk_3e2m : prk_3em
+            prk_3e2m_hkdf,
+            prk_3e2m
         }))
     }
 }
@@ -272,6 +284,7 @@ impl PartyI<Msg3Sender> {
     /// secret and the OSCORE master salt.
     pub fn generate_message_3(
         self,
+        ead_3: Option<Vec<u8>>,
     ) -> Result<(PartyI<Msg4ReceiveVerify>,Vec<u8>), OwnError> {
 
         //first making necessary copies:
@@ -288,7 +301,7 @@ impl PartyI<Msg3Sender> {
 
         let th_3 = util::compute_th_3(
             &self.0.th_2, 
-            &self.0.msg_2.ciphertext2)?;
+            &self.0.msg_2.ciphertext_2)?;
 
             
         let (_,prk_4x3m_hkdf) = util::extract_prk(
@@ -301,7 +314,8 @@ impl PartyI<Msg3Sender> {
             &th_3,  
             "MAC_3",
              id_cred_i, 
-             cred_i)?;
+             cred_i,
+            &ead_3)?;
 
         
         let k_3 = util::edhoc_kdf(
@@ -317,7 +331,7 @@ impl PartyI<Msg3Sender> {
             "IV_3",
             b"",
             util::CCM_NONCE_LEN / 8)?;
-        let p = util::build_plaintext(&self.0.i_kid, &mac_3)?;
+        let p = util::build_plaintext(&self.0.i_kid, &mac_3,ead_3)?;
 
         let ad = cose::build_ad(&th_3)?;
 
@@ -352,9 +366,9 @@ impl PartyI<Msg3Sender> {
 
         Ok((PartyI(Msg4ReceiveVerify {
             prk_4x3m_hkdf,
-            th_4 : th_4,
-            master_salt : master_salt,
-            master_secret: master_secret
+            th_4,
+            master_salt,
+            master_secret
         }),msg_3_seq))
     }
 }
@@ -367,11 +381,18 @@ pub struct Msg4ReceiveVerify {
     master_salt : Vec<u8>,
 }
 
+    /// Handle message four, and return output keying material and ead, if wanted
+    ///
+    /// # Arguments
+    /// * `msg4_seq` msg 4 as bytes
+    /// Outputs (sck,rck,rk,ead)
+
+
 impl PartyI<Msg4ReceiveVerify> {
-    pub fn handle_message_4(
+    pub fn handle_message_4_ead(
         self,
         msg4_seq : Vec<u8>,
-    ) -> Result<(Vec<u8>, Vec<u8>,Vec<u8>), OwnOrPeerError> {
+    ) -> Result<(Vec<u8>, Vec<u8>,Vec<u8>,Vec<u8>), OwnOrPeerError> {
 
 
         util::fail_on_error_message(&msg4_seq)?;
@@ -396,9 +417,9 @@ impl PartyI<Msg4ReceiveVerify> {
         let ad = cose::build_ad(&self.0.th_4)?;
         let plaintext = util::aead_open(&k_4, &iv_4, &msg4.ciphertext, &ad)?;
 
-
-        if plaintext.len() != 0{
-            Err(Error::Aead)?;
+        let ead : Vec<u8> = Vec::new();
+        if !plaintext.is_empty(){
+            let ead = util::deserialize_ead(&plaintext)?;
         }
 
 
@@ -425,8 +446,17 @@ impl PartyI<Msg4ReceiveVerify> {
 
     
 
+        Ok((sck,rck,rk,ead))
+    }
+
+    pub fn handle_message_4(
+        self,
+        msg4_seq : Vec<u8>,
+    ) -> Result<(Vec<u8>, Vec<u8>,Vec<u8>), OwnOrPeerError> {
+        let (sck,rck,rk,_) = self.handle_message_4_ead(msg4_seq)?;
         Ok((sck,rck,rk))
     }
+
 
 }
 // Party V constructs ---------------------------------------------------------
@@ -482,8 +512,8 @@ impl PartyR<Msg1Receiver> {
         })
     }
 
-    /// Processes the first message.
-    pub fn handle_message_1(
+    /// Processes the first message, return ead
+    pub fn handle_message_1_ead(
         self,
         msg_1: Vec<u8>,
     ) -> Result<(PartyR<Msg2Sender>,Vec<u8>,Option<Vec<u8>>), OwnError> {
@@ -496,7 +526,7 @@ impl PartyR<Msg1Receiver> {
         // Verify that the selected suite is supported
         
         if msg_1.suite != 3 {
-            Err(Error::UnsupportedSuite)?;
+            return Err(Error::UnsupportedSuite.into())
         }
 
         // Use U's public key to generate the ephemeral shared secret
@@ -512,8 +542,7 @@ impl PartyR<Msg1Receiver> {
 
 
         Ok((PartyR(Msg2Sender {
-            ead: msg_1.ead.clone(),
-            ecdh_r_secret : self.0.secret,
+                ecdh_r_secret : self.0.secret,
             shared_secret_0,
             shared_secret_1,
             x_r: self.0.x_r,
@@ -522,7 +551,18 @@ impl PartyR<Msg1Receiver> {
             msg_1_seq,
         }),
         msg_1.c_i,
-        msg_1.ead))
+        msg_1.ead_1))
+    }
+    /// Processes the first message.
+    pub fn handle_message_1(
+        self,
+        msg_1: Vec<u8>,
+    ) -> Result<(PartyR<Msg2Sender>,Vec<u8>), OwnError> {
+        // simply wrapping the handling of message 1, but not returning ead, allowing R to discard ead
+        let (msg2_sender, c_i, _ead) = self.handle_message_1_ead(msg_1)?;
+
+        Ok((msg2_sender, c_i))
+
     }
 }
 
@@ -532,7 +572,6 @@ impl PartyR<Msg1Receiver> {
 /// shared_secret_2 : the third shared secret, created only from I's  static key, and R's ephemeral key
 /// (this is from the side of I)
 pub struct Msg2Sender {
-    ead: Option<Vec<u8>>,
     ecdh_r_secret: StaticSecret,
     shared_secret_0: SharedSecret,
     shared_secret_1: SharedSecret,
@@ -547,8 +586,8 @@ impl PartyR<Msg2Sender> {
     pub fn generate_message_2(
         self,
         c_r : Vec<u8>,
+        ead_2 : Option<Vec<u8>>,
     ) -> Result<(Vec<u8>, PartyR<Msg3Receiver>),OwnOrPeerError> {
-
             // first we need to build the id_cred_r from the kid
             let id_cred_r = cose::build_id_cred_x(&self.0.r_kid)?;
 
@@ -567,12 +606,12 @@ impl PartyR<Msg2Sender> {
                 &th_2, 
                 "MAC_2", 
                 id_cred_r, 
-                cred_r)?;
+                cred_r,
+                &ead_2)?;
 
 
             
-            let plaintext_encoded = util::build_plaintext(&self.0.r_kid, &mac_2)?;
-
+            let plaintext_encoded = util::build_plaintext(&self.0.r_kid, &mac_2,ead_2)?;
 
             let keystream2 = util::edhoc_kdf(
                 &prk_2e_hkdf, 
@@ -584,22 +623,24 @@ impl PartyR<Msg2Sender> {
             let ciphertext_2 = util::xor(&keystream2, &plaintext_encoded)?;
 
 
-            let msg2 = Message2 {
+            let msg_2 = Message2 {
                 ephemeral_key_r : self.0.x_r.as_bytes().to_vec(),
-                c_r : c_r,
-                ciphertext2: ciphertext_2,
+                c_r,
+                ciphertext_2,
             };
 
-            let msg2_seq = util::serialize_message_2(&msg2)?;
 
+
+
+            let msg2_seq = util::serialize_message_2(&msg_2)?;
 
             Ok((msg2_seq, 
                 PartyR(Msg3Receiver {
                     r_ecdh_secret: self.0.ecdh_r_secret,
-                    prk_3e2m_hkdf : prk_3e2m_hkdf,
-                    prk_3e2m : prk_3e2m,
-                    msg_2 : msg2,
-                    th_2 : th_2,
+                    prk_3e2m_hkdf,
+                    prk_3e2m,
+                    msg_2,
+                    th_2,
                 }),
             ))
 
@@ -618,21 +659,19 @@ pub struct Msg3Receiver {
 
 impl PartyR<Msg3Receiver> {
     /// Returns the kid of the other party, and the state to verify
-    pub fn unpack_message_3_return_kid(
+    pub fn unpack_message_3_return_kid_ead(
         self,
         msg_3_seq: Vec<u8>,
-    ) -> Result<(PartyR<Msg3verifier>, Vec<u8>), OwnOrPeerError> {
+    ) -> Result<(PartyR<Msg3verifier>, Vec<u8>,Option<Vec<u8>>), OwnOrPeerError> {
         util::fail_on_error_message(&msg_3_seq)?;
         // first, relevant copies:
-
-
 
         let msg_3 = util::deserialize_message_3(&msg_3_seq)?;
 
 
         let th_3 = util::compute_th_3(
             &self.0.th_2, 
-            &self.0.msg_2.ciphertext2)?;
+            &self.0.msg_2.ciphertext_2)?;
 
 
         let k_3 = util::edhoc_kdf(
@@ -659,18 +698,31 @@ impl PartyR<Msg3Receiver> {
             &msg_3.ciphertext, 
             &ad)?;
         
-        let (r_kid, mac3) = util::extract_plaintext(p)?;
+        let (r_kid, mac3,ead_3) = util::extract_plaintext(p)?;
 
         Ok((PartyR(Msg3verifier{
             r_ecdh_secret : self.0.r_ecdh_secret,
             prk_3e2m_hkdf : self.0.prk_3e2m_hkdf,
             prk_3e2m : self.0.prk_3e2m,
-            msg3 : msg_3,
+            msg_3,
             kid : r_kid.clone(),
-            mac3 : mac3,
-            th3: th_3,
+            mac3,
+            ead_3 : ead_3.clone(),
+            th_3,
         }),
-        r_kid))
+        r_kid,
+        ead_3))
+    }
+
+    pub fn unpack_message_3_return_kid(
+        self,
+        msg_3_seq: Vec<u8>,
+    ) -> Result<(PartyR<Msg3verifier>, Vec<u8>), OwnOrPeerError> {
+
+        let (msg_3_verifier, kid, _ead_3) = self.unpack_message_3_return_kid_ead(msg_3_seq)?;
+        Ok((
+        msg_3_verifier,
+        kid))
     }
 }
 
@@ -679,10 +731,11 @@ pub struct Msg3verifier {
     r_ecdh_secret : StaticSecret,
     prk_3e2m_hkdf : hkdf::Hkdf<sha2::Sha256>,
     prk_3e2m : Vec<u8>,
-    msg3 : Message3,
+    msg_3 : Message3,
     kid : Vec<u8>,
     mac3 : Vec<u8>,
-    th3: Vec<u8>,
+    ead_3 : Option<Vec<u8>>,
+    th_3: Vec<u8>,
 }
 impl PartyR<Msg3verifier> {
     /// Returns the key ID of the other party's public authentication key.
@@ -703,16 +756,17 @@ impl PartyR<Msg3verifier> {
         let mac_3_initiator = util::create_mac_with_kdf(
             &self.0.prk_3e2m_hkdf, 
             util::EDHOC_MAC/8, 
-            &self.0.th3,  
+            &self.0.th_3,  
             "MAC_3",
              id_cred_i, 
-             cred_i)?;
+             cred_i,
+            &self.0.ead_3)?;
 
         if mac_3_initiator != self.0.mac3{
-             Err(Error::BadMac)?;
+           return  Err(Error::BadMac.into())
             }
 
-        let th_4 = util::compute_th_4(&self.0.th3, &self.0.msg3.ciphertext)?;
+        let th_4 = util::compute_th_4(&self.0.th_3, &self.0.msg_3.ciphertext)?;
 
         let (_,prk_4x3m_hkdf) = util::extract_prk(
                 Some(&self.0.prk_3e2m),
@@ -760,7 +814,7 @@ impl PartyR<Msg3verifier> {
 
         Ok((PartyR(Msg4Sender{
             prk_4x3m_hkdf,
-            th_4 : th_4,
+            th_4,
             }),
         sck,
         rck,
@@ -779,6 +833,7 @@ pub struct Msg4Sender {
 impl PartyR<Msg4Sender> {
     pub fn generate_message_4(
         self,
+        ead_4 :Option<Vec<u8>>,
     ) -> Result< Vec<u8>, OwnOrPeerError> {
 
 
@@ -801,7 +856,19 @@ impl PartyR<Msg4Sender> {
         let ad = cose::build_ad(&self.0.th_4)?;
 
 
-        let ciphertext_4 = util::aead_seal(&k_4, &iv_4, "".as_bytes(), &ad)?;
+        let tmp : Vec<u8>;
+        let p = match ead_4 {
+            Some(x) => { 
+                tmp = util::serialize_ead(&x)?;
+                &tmp
+            },
+            None => "".as_bytes(),
+        };
+
+
+
+
+        let ciphertext_4 = util::aead_seal(&k_4, &iv_4, p, &ad)?;
 
         let msg4 = Message4 {
             ciphertext : ciphertext_4,

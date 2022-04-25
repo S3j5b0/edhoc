@@ -32,7 +32,7 @@ pub struct Message1 {
     pub suite: u8,
     pub x_i: Vec<u8>,
     pub c_i : Vec<u8>,
-    pub ead: Option<Vec<u8>>,
+    pub ead_1: Option<Vec<u8>>,
 }
 
 /// Serializes EDHOC `message_1`.
@@ -40,47 +40,94 @@ pub fn serialize_message_1(msg: &Message1) -> Result<Vec<u8>> {
     // Pack the data into a structure that nicely serializes almost into
     // what we want to have as the actual bytes for the EDHOC message
 
-    if msg.ead == None {
-    let raw_msg  = (
-        msg.method,
-        msg.suite,
-        Bytes::new(&msg.x_i),
-        Bytes::new(&msg.c_i),
-    );
-    Ok(cbor::encode_sequence(raw_msg)?)
-    } else {
-        let ead = &msg.ead.as_ref().unwrap();
+    match &msg.ead_1 { 
+        Some(ead)=>  {
+            let ead_cbor = serialize_ead(ead)?;
+          //  let ead = &msg.ead.as_ref().unwrap();
+            let raw_msg  = (
+                msg.method,
+                msg.suite,
+                Bytes::new(&msg.x_i),
+                Bytes::new(&msg.c_i),
+                Bytes::new(&ead_cbor),
+            );
+    
+            Ok(cbor::encode_sequence(raw_msg)?)
+        },
+        
+        None => {
         let raw_msg  = (
             msg.method,
             msg.suite,
             Bytes::new(&msg.x_i),
             Bytes::new(&msg.c_i),
-            Bytes::new(ead),
         );
-
-        Ok(cbor::encode_sequence(raw_msg)?)
+        Ok(cbor::encode_sequence(raw_msg)?)}
     }
-
-    
 }
 
-/// Deserializes EDHOC `message_1`.
+/// Deserializes EDHOC `message_1`, first it tries to serialize with ead, and then without
 pub fn deserialize_message_1(msg: &[u8]) -> Result<Message1> {
     // Try to deserialize into our raw message format
     let mut temp = Vec::with_capacity(msg.len() + 1);
-    let raw_msg: (u8, u8, ByteBuf, ByteBuf, ByteBuf) =
-        cbor::decode_sequence(msg, 5, &mut temp)?;
+        
+
+    
+        match cbor::decode_sequence(msg, 5, &mut temp) {
+            Ok(x) => {
+                let raw_msg : (u8, u8, ByteBuf, ByteBuf, ByteBuf) = x;
+                let ead_1 = deserialize_ead(&raw_msg.4.into_vec())?;
+                Ok(Message1 {
+                    method: raw_msg.0,
+                    suite: raw_msg.1,
+                    x_i: raw_msg.2.into_vec(),
+                    c_i : raw_msg.3.into_vec(),
+                    ead_1: Some(ead_1),
+                })
+            }
+            _ => {
+                let mut temp = Vec::with_capacity(msg.len() + 1);
+                let raw_msg : (u8, u8, ByteBuf, ByteBuf)= cbor::decode_sequence(msg, 4, &mut temp)?;
+
+                Ok(Message1 {
+                    method: raw_msg.0,
+                    suite: raw_msg.1,
+                    x_i: raw_msg.2.into_vec(),
+                    c_i : raw_msg.3.into_vec(),
+                    ead_1: None,
+                })
+
+            }
+        }
+    
+
+
+
+
+}
+/// Serializes EDHOC `message_1`.
+pub fn serialize_ead(ead: &[u8]) -> Result<Vec<u8>> {
+    // Pack the data into a structure that nicely serializes almost into
+    // what we want to have as the actual bytes for the EDHOC message
+    let ead_tup = (
+        1,
+        Bytes::new(ead),
+    );
+    
+    Ok(cbor::encode_sequence(ead_tup)?)
+
+}
+/// Deserializes EDHOC `message_1`.
+pub fn deserialize_ead(ead: &[u8]) -> Result<Vec<u8>> {
+    let mut temp = Vec::with_capacity(ead.len() + 1);
+    // Try to deserialize into our raw message format
+    let raw_ead: (u8, ByteBuf) =
+        cbor::decode_sequence(ead, 2, &mut temp)?;
 
 
     // On success, just move the items into the "nice" message structure
 
-    Ok(Message1 {
-        method: raw_msg.0,
-        suite: raw_msg.1,
-        x_i: raw_msg.2.into_vec(),
-        c_i : raw_msg.3.into_vec(),
-        ead: Some(raw_msg.4.into_vec()),
-    })
+    Ok(raw_ead.1.into_vec())
 }
 
 /// EDHOC `message_2`.
@@ -89,12 +136,12 @@ pub fn deserialize_message_1(msg: &[u8]) -> Result<Message1> {
 pub struct Message2 {
     pub ephemeral_key_r: Vec<u8>,
     pub c_r: Vec<u8>,
-    pub ciphertext2: Vec<u8>,
+    pub ciphertext_2: Vec<u8>,
 }
 
 /// Serializes EDHOC `message_2`.
 pub fn serialize_message_2(msg: &Message2) -> Result<Vec<u8>> {
-    let c_r_and_ciphertext = [msg.ephemeral_key_r.clone(), msg.ciphertext2.clone()].concat();
+    let c_r_and_ciphertext = [msg.ephemeral_key_r.clone(), msg.ciphertext_2.clone()].concat();
 
 
 let encoded = (
@@ -121,7 +168,7 @@ pub fn deserialize_message_2(msg: &[u8]) -> Result<Message2> { //Result<Message2
     Ok(Message2 {
         ephemeral_key_r: ephemeral_key_r.to_vec(),
         c_r: c_r.to_vec(),
-        ciphertext2: ciphertext2.to_vec(),
+        ciphertext_2: ciphertext2.to_vec(),
         })
 
 
@@ -301,13 +348,18 @@ pub fn create_mac_with_kdf(
     mac_identifier : &str,
     id_cred_x : Vec<u8>,
     cred_x : Vec<u8>,
+    ead : &Option<Vec<u8>>,
 ) -> Result<Vec<u8>> {
 
     // prepare context
     let mut context = Vec::new();
-    context.extend(id_cred_x.clone());
+    context.extend(id_cred_x);
     context.extend(cred_x);
-    edhoc_kdf(prk, &th, mac_identifier,&context, maclength)
+    match ead {
+       Some(data) => context.extend(data),
+       None => ()
+    }
+    edhoc_kdf(prk, th, mac_identifier,&context, maclength)
 
 }
 
@@ -374,7 +426,7 @@ pub fn extract_expand(
     label : &str,
     length : usize,
 ) -> Result<Vec<u8>> {
-    let hk = Hkdf::<Sha256>::new(Some(&salt), &ikm);
+    let hk = Hkdf::<Sha256>::new(Some(salt), ikm);
     
 
     let mut okm = vec![0;  length];
@@ -384,7 +436,7 @@ pub fn extract_expand(
 
 
 // Xor function, for message 2
-pub fn xor(a : &Vec<u8>, b:&Vec<u8>) -> Result<Vec<u8>>{
+pub fn xor(a : &[u8], b:&[u8]) -> Result<Vec<u8>>{
 
     if a.len() != b.len(){
         panic!("Attempting to xor vec's of unequal length");
@@ -427,7 +479,7 @@ pub fn compute_th_2(
 
     let hash_data = cbor::encode_sequence((
         Bytes::new(pk_bytes),
-        Bytes::new(&c_r),
+        Bytes::new(c_r),
     ))?;
     msg_1_hash.extend(&hash_data);
 
@@ -474,20 +526,44 @@ fn h(seq: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// Returns the CBOR bstr making up the plaintext of `message_i`.
-pub fn build_plaintext(kid: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+pub fn build_plaintext(kid: &[u8], mac: &[u8],ead :Option<Vec<u8>>) -> Result<Vec<u8>> {
+    match ead {
+        Some(ead) => {
+            Ok(cbor::encode_sequence((
+                Bytes::new(kid),
+                Bytes::new(mac),
+                Bytes::new(&ead),
+            ))?)
+        },
+        None =>  {
+            Ok(cbor::encode_sequence((
+                Bytes::new(kid),
+                Bytes::new(mac),
+            ))?)
+        }
+    }
 
-    let concat = [key,kid].concat();
-    Ok(concat.to_vec())
 }
 
 /// Extracts and returns the `kid` and signature from the plaintext of
-/// `message_i`.
-pub fn extract_plaintext(plaintext: Vec<u8>) -> Result<(Vec<u8>, Vec<u8>)> {
+/// `message_i`, which consists of the kid value, a mac, and optionally external auth data
+pub fn extract_plaintext(plaintext: Vec<u8>) -> Result<(Vec<u8>, Vec<u8>, Option<Vec<u8>>)> {
 
-    let key = plaintext[..EDHOC_MAC/8].to_vec();
-    let kid = plaintext[EDHOC_MAC/8..].to_vec();
+    let mut temp = Vec::with_capacity(plaintext.len() + 1);
+    
+    match cbor::decode_sequence(&plaintext, 2, &mut temp) {
+        Ok(tup) => {
+            let (kid,mac) : (ByteBuf, ByteBuf) = tup;
+            Ok((kid.to_vec(), mac.into_vec(), None))
+        },
+        _=> {
+            let (kid,mac,ead) : (ByteBuf, ByteBuf, ByteBuf)= cbor::decode_sequence(&plaintext, 3, &mut temp)?;
+            Ok((kid.to_vec(), mac.into_vec(), Some(ead.into_vec())))
 
-    Ok((kid, key))
+        }
+    }
+
+    
 }
 
 /// Encrypts and authenticates with AES-CCM-16-64-128.
@@ -552,7 +628,7 @@ fn test_serialize_message_1() {
         suite: 0,
         x_i : I_EPHEMERAL_PK.to_vec(),
         c_i : [12].to_vec(),
-        ead : None,
+        ead_1 : None,
     };
     
     let serial = serialize_message_1(&msg1).unwrap();
@@ -568,7 +644,7 @@ fn test_serialize_message_2() {
     let msg2 = Message2 {
         ephemeral_key_r : R_EPHEMERAL_PK.to_vec(),
         c_r : C_R.to_vec(),
-        ciphertext2 : CIPHERTEXT_2.to_vec(),
+        ciphertext_2 : CIPHERTEXT_2.to_vec(),
     };
     
     let serial = serialize_message_2(&msg2).unwrap();
@@ -612,12 +688,18 @@ fn mac_2() {
         &th_2, 
         "MAC_2", 
         id_cred_x, 
-        CRED_R.to_vec()).unwrap();
+        CRED_R.to_vec(),
+        &None).unwrap();
 
 
     assert_eq!(mac_2, &MAC_2)
 }
+#[test]
 
+fn plaintext() {
+    let plain = build_plaintext(&[5], &MAC_2,None).unwrap();
+    assert_eq!(plain,PLAINTEXT_2);
+}
 #[test]
 
 fn master_secret() {
@@ -638,5 +720,17 @@ fn master_secret() {
 
     assert_eq!(master_secret,MASTER_SECRET);
 }
+#[test]
 
+fn test_ead() {
+    let ead = [1,2,3,4].to_vec();
+
+    let ead_cbor = serialize_ead(&ead).unwrap();
+
+    let ead_deser = deserialize_ead(&ead_cbor).unwrap();
+
+
+
+    assert_eq!(ead,ead_deser);
+}
 }

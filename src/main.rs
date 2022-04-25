@@ -47,7 +47,7 @@ fn main() {
         // since the protocol hasn't started yet.
         msg1_sender.generate_message_1(METHOD_TYPE_I, SUITE_I).unwrap();
  
-
+    println!("msg1len {}", msg1_bytes.len());
     /*
     /// Party R handle message 1
     */
@@ -56,7 +56,7 @@ fn main() {
     let r_static_pub = PublicKey::from(&r_static_priv);
 
 
-    let r_kid = [0xA3].to_vec();
+    let r_kid = [0x10].to_vec();
 
     // create keying material
 
@@ -66,7 +66,7 @@ fn main() {
     let msg1_receiver =
        PartyR::new(r_priv, r_static_priv, r_static_pub, r_kid);
        
-    let (msg2_sender,devui,appeui) = match msg1_receiver.handle_message_1(msg1_bytes) {
+    let (msg2_sender,devui,appeui) = match msg1_receiver.handle_message_1_ead(msg1_bytes) {
         Err(OwnError(b)) => {
             panic!("{:?}", b)
         },
@@ -75,7 +75,7 @@ fn main() {
 
 
     // AS should now validate deveui and appeui
-    let (msg2_bytes,msg3_receiver) = match msg2_sender.generate_message_2(appeui.unwrap()) {
+    let (msg2_bytes,msg3_receiver) = match msg2_sender.generate_message_2(appeui.unwrap(),None) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Received error msg: {}", s)
         }
@@ -84,7 +84,7 @@ fn main() {
         } 
         Ok(val) => val,
     };
-
+    println!("msg2len {} ", msg2_bytes.len());
 
     /*///////////////////////////////////////////////////////////////////////////
     /// Initiator receiving and handling message 2, and then generating message 3, and the rck/sck
@@ -108,7 +108,7 @@ fn main() {
         Ok(val) => val, };
 
     let (msg4_receiver_verifier, msg3_bytes) =
-        match msg3_sender.generate_message_3() {
+        match msg3_sender.generate_message_3(None) {
             Err(OwnError(b)) => panic!("Send these bytes: {}", hexstring(&b)),
             Ok(val) => val,
         };
@@ -145,7 +145,7 @@ fn main() {
 
 
     let msg4_bytes =
-    match msg4_sender.generate_message_4() {
+    match msg4_sender.generate_message_4(None) {
             Err(OwnOrPeerError::PeerError(s)) => {
                 panic!("Received error msg: {}", s)
             }
