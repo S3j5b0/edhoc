@@ -28,10 +28,10 @@ impl PartyIState for Msg4ReceiveVerify {}
 pub struct Msg1Sender {
     ead_1: Option<Vec<u8>>,
     c_i : Vec<u8>,
-    secret: StaticSecret,
-    x_i: PublicKey,
-    static_secret: StaticSecret,
-    static_public: PublicKey,
+    priv_ephemeral_i: StaticSecret,
+    pub_ephemeral_i: PublicKey,
+    pub_static_i: PublicKey,
+    priv_static_i: StaticSecret,
     kid: Vec<u8>,
 }
 
@@ -49,26 +49,25 @@ impl PartyI<Msg1Sender> {
     pub fn new(
         c_i: Vec<u8>,
         ead_1: Option<Vec<u8>>,
-        ecdh_secret: [u8; 32],
-        stat_priv: StaticSecret,
-        stat_pub: PublicKey,
+        ephemeral_secret: [u8; 32],
+        priv_static_i: StaticSecret,
+        pub_static_i: PublicKey,
         kid: Vec<u8>,
     ) -> PartyI<Msg1Sender> {
 
-        let secret = StaticSecret::from(ecdh_secret);
+        let priv_ephemeral_i = StaticSecret::from(ephemeral_secret);
         // and from that build the corresponding public key
-        let x_i = PublicKey::from(&secret);
+        let pub_ephemeral_i = PublicKey::from(&priv_ephemeral_i);
 
 
 
-        // Combine the authentication key pair for convenience
          PartyI(Msg1Sender {
             ead_1,
             c_i,
-            secret,
-            x_i,
-            static_secret:stat_priv,
-            static_public:stat_pub,
+            priv_ephemeral_i,
+            pub_ephemeral_i,
+            pub_static_i,
+            priv_static_i,
             kid,
         })
     }
@@ -85,7 +84,7 @@ impl PartyI<Msg1Sender> {
         let msg_1 = Message1 {
             method,
             suite: suites,
-            x_i: self.0.x_i.as_bytes().to_vec(), // sending PK as vector
+            pub_ephemeral_i: self.0.pub_ephemeral_i.as_bytes().to_vec(), // sending PK as vector
             c_i : self.0.c_i,
             ead_1 : self.0.ead_1,
         };
@@ -96,9 +95,9 @@ impl PartyI<Msg1Sender> {
         Ok((
             msg_1_bytes,
             PartyI(Msg2Receiver {
-                i_ecdh_ephemeralsecret: self.0.secret,
-                stat_priv: self.0.static_secret,
-                stat_pub: self.0.static_public,
+                priv_ephemeral_i: self.0.priv_ephemeral_i,
+                pub_static_i: self.0.pub_static_i,
+                priv_static_i: self.0.priv_static_i,
                 kid: self.0.kid,
                 msg_1_seq,
             }),
@@ -107,9 +106,9 @@ impl PartyI<Msg1Sender> {
 }
 /// Contains the state to receive the second message.
 pub struct Msg2Receiver {
-    i_ecdh_ephemeralsecret: StaticSecret,
-    stat_priv : StaticSecret,
-    stat_pub : PublicKey,
+    priv_ephemeral_i: StaticSecret,
+    pub_static_i : PublicKey,
+    priv_static_i : StaticSecret,
     kid: Vec<u8>,
     msg_1_seq: Vec<u8>,
 }
@@ -128,20 +127,19 @@ impl PartyI<Msg2Receiver> {
 
         let msg_2 = util::deserialize_message_2(&msg_2)?;
 
-        // cosntructing ephemeral keypair
 
-        // Constructing shared secret for initiator 
-        let mut x_r_bytes = [0; 32];
-        x_r_bytes.copy_from_slice(&msg_2.ephemeral_key_r[..32]);
-        let r_ephemeral_pk = x25519_dalek_ng::PublicKey::from(x_r_bytes);
+        let mut pub_ephemeral_r_bytes = [0; 32];
+        pub_ephemeral_r_bytes.copy_from_slice(&msg_2.ephemeral_key_r[..32]);
+        let pub_ephemeral_r = x25519_dalek_ng::PublicKey::from(pub_ephemeral_r_bytes);
+        // Constructing shared secret 0 for initiator 
 
 
-       let shared_secret_0 = self.0.i_ecdh_ephemeralsecret.diffie_hellman(&r_ephemeral_pk);
+       let shared_secret_0 = self.0.priv_ephemeral_i.diffie_hellman(&pub_ephemeral_r);
         
 
         // reconstructing keystream2
         let c_r_cpy = msg_2.c_r.clone();
-        let th_2 = util::compute_th_2(self.0.msg_1_seq, &msg_2.c_r, r_ephemeral_pk)?;
+        let th_2 = util::compute_th_2(self.0.msg_1_seq, &msg_2.c_r, pub_ephemeral_r)?;
         let (prk_2e,prk_2e_hkdf) = util::extract_prk(None, shared_secret_0.as_bytes())?;
 
 
@@ -164,9 +162,9 @@ impl PartyI<Msg2Receiver> {
             c_r_cpy,
             ead_2.clone(),
             PartyI(Msg2Verifier {
-                i_ecdh_ephemeralsecret : self.0.i_ecdh_ephemeralsecret,
-                stat_priv: self.0.stat_priv,
-                stat_pub : self.0.stat_pub,
+                priv_ephemeral_i : self.0.priv_ephemeral_i,
+                priv_static_i: self.0.priv_static_i,
+                pub_static_i : self.0.pub_static_i,
                 kid: self.0.kid,
                 msg_2,
                 mac_2,
@@ -174,7 +172,7 @@ impl PartyI<Msg2Receiver> {
                 prk_2e,
                 th_2,
                 r_kid,
-                r_ephemeral_pk,
+                pub_ephemeral_r,
 
 
             }),
@@ -198,9 +196,9 @@ impl PartyI<Msg2Receiver> {
 
 /// Contains the state to verify the second message.
 pub struct Msg2Verifier {
-    i_ecdh_ephemeralsecret : StaticSecret,
-    stat_priv : StaticSecret,
-    stat_pub : PublicKey,
+    priv_ephemeral_i : StaticSecret,
+    priv_static_i : StaticSecret,
+    pub_static_i : PublicKey,
     kid: Vec<u8>,
     msg_2: Message2,
     mac_2: Vec<u8>,
@@ -208,7 +206,7 @@ pub struct Msg2Verifier {
     prk_2e : Vec<u8>,
     th_2: Vec<u8>,
     r_kid: Vec<u8>,
-    r_ephemeral_pk : PublicKey,
+    pub_ephemeral_r : PublicKey,
 }
 
 
@@ -217,21 +215,21 @@ impl PartyI<Msg2Verifier> {
     /// public authentication key.
     pub fn verify_message_2(
         self,
-        r_public_static_bytes: &[u8],
+        pub_static_r_bytes: &[u8],
     ) -> Result<PartyI<Msg3Sender>, OwnError> {
 
         // build cred_x and id_cred_x (for responder party)
         let id_cred_r = cose::build_id_cred_x(&self.0.r_kid)?;
 
-        let cred_r = cose::serialize_cred_x(r_public_static_bytes,&self.0.r_kid )?; 
+        let cred_r = cose::serialize_cred_x(pub_static_r_bytes,&self.0.r_kid )?; 
         // Generating static public key of initiator
-        let mut statkey_r_bytes = [0; 32];
-        statkey_r_bytes.copy_from_slice(&r_public_static_bytes[..32]);
-        let r_public_static = x25519_dalek_ng::PublicKey::from(statkey_r_bytes);
+        let mut buf = [0; 32];
+        buf.copy_from_slice(&pub_static_r_bytes[..32]);
+        let pub_static_r = x25519_dalek_ng::PublicKey::from(buf);
 
         // Generating shared secret 1 for initiator
 
-        let shared_secret_1 = self.0.i_ecdh_ephemeralsecret.diffie_hellman(&r_public_static);
+        let shared_secret_1 = self.0.priv_ephemeral_i.diffie_hellman(&pub_static_r);
 
         // generating prk_3
 
@@ -253,9 +251,9 @@ impl PartyI<Msg2Verifier> {
         
 
         Ok(PartyI(Msg3Sender{
-            i_stat_priv : self.0.stat_priv,
-            i_stat_pub : self.0.stat_pub,
-            r_ephemeral_pk: self.0.r_ephemeral_pk,
+            priv_static_i : self.0.priv_static_i,
+            pub_static_i : self.0.pub_static_i,
+            pub_ephemeral_r: self.0.pub_ephemeral_r,
             i_kid : self.0.kid,
             msg_2 : self.0.msg_2,
             th_2 : self.0.th_2,
@@ -267,10 +265,9 @@ impl PartyI<Msg2Verifier> {
 
 /// Contains the state to build the third message.
 pub struct Msg3Sender {
-    i_stat_priv : StaticSecret,
-    i_stat_pub : PublicKey,
-
-    r_ephemeral_pk : PublicKey, 
+    priv_static_i : StaticSecret,
+    pub_static_i : PublicKey,
+    pub_ephemeral_r : PublicKey, 
     i_kid: Vec<u8>,
     msg_2: Message2,
     th_2: Vec<u8>,
@@ -292,9 +289,9 @@ impl PartyI<Msg3Sender> {
         // Build the COSE header map identifying the public authentication key
         let id_cred_i = cose::build_id_cred_x(&self.0.i_kid)?;
         // Build the COSE_Key containing our public authentication key
-        let cred_i = cose::serialize_cred_x(&self.0.i_stat_pub.to_bytes(), &self.0.i_kid)?;
+        let cred_i = cose::serialize_cred_x(&self.0.pub_static_i.to_bytes(), &self.0.i_kid)?;
 
-        let shared_secret_2 = self.0.i_stat_priv.diffie_hellman(&self.0.r_ephemeral_pk);
+        let shared_secret_2 = self.0.priv_static_i.diffie_hellman(&self.0.pub_ephemeral_r);
         
         
         // transcript hash 3
@@ -474,10 +471,10 @@ impl PartyRState for Msg4Sender {}
 /// Contains the state to receive the first message.
 /// 
 pub struct Msg1Receiver {
-    secret: StaticSecret,
-    x_r: PublicKey,
-    stat_priv: StaticSecret,
-    stat_pub: PublicKey,
+    priv_ephemeral_r: StaticSecret,
+    pub_ephemeral_r: PublicKey,
+    pub_static_r: PublicKey,
+    priv_static_r: StaticSecret,
     kid: Vec<u8>,
 }
 
@@ -493,21 +490,21 @@ impl PartyR<Msg1Receiver> {
     ///   `auth_public`.
     pub fn new(
         ecdh_secret: [u8; 32],
-        stat_priv: StaticSecret,
-        stat_pub: PublicKey,
+        priv_static_r: StaticSecret,
+        pub_static_r: PublicKey,
         kid: Vec<u8>,
     ) -> PartyR<Msg1Receiver> {
         // From the secret bytes, create the DH secret
-        let secret = StaticSecret::from(ecdh_secret);
+        let priv_ephemeral_r = StaticSecret::from(ecdh_secret);
         // and from that build the corresponding public key
-        let x_r = PublicKey::from(&secret);
+        let pub_ephemeral_r = PublicKey::from(&priv_ephemeral_r);
         // Combine the authentication key pair for convenience
 
         PartyR(Msg1Receiver {
-            secret,
-            x_r,
-            stat_priv,
-            stat_pub,
+            priv_ephemeral_r,
+            pub_ephemeral_r,
+            priv_static_r,
+            pub_static_r,
             kid,
         })
     }
@@ -531,22 +528,22 @@ impl PartyR<Msg1Receiver> {
 
         // Use U's public key to generate the ephemeral shared secret
         let mut ed_key_bytes = [0; 32];
-        ed_key_bytes.copy_from_slice(&msg_1.x_i[..32]);
-        let i_public = x25519_dalek_ng::PublicKey::from(ed_key_bytes);
+        ed_key_bytes.copy_from_slice(&msg_1.pub_ephemeral_i[..32]);
+        let pub_ephemeral_i = x25519_dalek_ng::PublicKey::from(ed_key_bytes);
 
         // generating shared secret at responder
-        let shared_secret_0 = self.0.secret.diffie_hellman(&i_public.clone());
+        let shared_secret_0 = self.0.priv_ephemeral_r.diffie_hellman(&pub_ephemeral_i);
         
-        let shared_secret_1 = self.0.stat_priv.diffie_hellman(&i_public);
+        let shared_secret_1 = self.0.priv_static_r.diffie_hellman(&pub_ephemeral_i);
 
 
 
         Ok((PartyR(Msg2Sender {
-                ecdh_r_secret : self.0.secret,
+            priv_ephemeral_r : self.0.priv_ephemeral_r,
+            pub_ephemeral_r: self.0.pub_ephemeral_r,
+            pub_static_r: self.0.pub_static_r,
             shared_secret_0,
             shared_secret_1,
-            x_r: self.0.x_r,
-            stat_pub: self.0.stat_pub,
             r_kid: self.0.kid,
             msg_1_seq,
         }),
@@ -572,11 +569,11 @@ impl PartyR<Msg1Receiver> {
 /// shared_secret_2 : the third shared secret, created only from I's  static key, and R's ephemeral key
 /// (this is from the side of I)
 pub struct Msg2Sender {
-    ecdh_r_secret: StaticSecret,
+    priv_ephemeral_r: StaticSecret,
+    pub_ephemeral_r: PublicKey,
+    pub_static_r : PublicKey,
     shared_secret_0: SharedSecret,
     shared_secret_1: SharedSecret,
-    x_r: PublicKey,
-    stat_pub : PublicKey,
     r_kid: Vec<u8>,
     msg_1_seq: Vec<u8>,
 }
@@ -592,9 +589,9 @@ impl PartyR<Msg2Sender> {
             let id_cred_r = cose::build_id_cred_x(&self.0.r_kid)?;
 
             // We now build the cred_x using the public key, and kid value
-            let cred_r = cose::serialize_cred_x(&self.0.stat_pub.to_bytes(),&self.0.r_kid )?; 
+            let cred_r = cose::serialize_cred_x(&self.0.pub_static_r.to_bytes(),&self.0.r_kid )?; 
 
-            let th_2 = util::compute_th_2(self.0.msg_1_seq, &c_r, self.0.x_r)?;
+            let th_2 = util::compute_th_2(self.0.msg_1_seq, &c_r, self.0.pub_ephemeral_r)?;
 
             let (prk_2e,prk_2e_hkdf) = util::extract_prk(None, self.0.shared_secret_0.as_bytes())?;
 
@@ -624,7 +621,7 @@ impl PartyR<Msg2Sender> {
 
 
             let msg_2 = Message2 {
-                ephemeral_key_r : self.0.x_r.as_bytes().to_vec(),
+                ephemeral_key_r : self.0.pub_ephemeral_r.as_bytes().to_vec(),
                 c_r,
                 ciphertext_2,
             };
@@ -636,7 +633,7 @@ impl PartyR<Msg2Sender> {
 
             Ok((msg2_seq, 
                 PartyR(Msg3Receiver {
-                    r_ecdh_secret: self.0.ecdh_r_secret,
+                    priv_ephemeral_r: self.0.priv_ephemeral_r,
                     prk_3e2m_hkdf,
                     prk_3e2m,
                     msg_2,
@@ -650,7 +647,7 @@ impl PartyR<Msg2Sender> {
 
 /// Contains the state to receive the third message.
 pub struct Msg3Receiver {
-    r_ecdh_secret : StaticSecret,
+    priv_ephemeral_r : StaticSecret,
     prk_3e2m_hkdf  : hkdf::Hkdf<sha2::Sha256>,
     prk_3e2m : Vec<u8>,
     msg_2: Message2,
@@ -701,7 +698,7 @@ impl PartyR<Msg3Receiver> {
         let (r_kid, mac3,ead_3) = util::extract_plaintext(p)?;
 
         Ok((PartyR(Msg3verifier{
-            r_ecdh_secret : self.0.r_ecdh_secret,
+            priv_ephemeral_r : self.0.priv_ephemeral_r,
             prk_3e2m_hkdf : self.0.prk_3e2m_hkdf,
             prk_3e2m : self.0.prk_3e2m,
             msg_3,
@@ -728,7 +725,7 @@ impl PartyR<Msg3Receiver> {
 
 
 pub struct Msg3verifier {
-    r_ecdh_secret : StaticSecret,
+    priv_ephemeral_r : StaticSecret,
     prk_3e2m_hkdf : hkdf::Hkdf<sha2::Sha256>,
     prk_3e2m : Vec<u8>,
     msg_3 : Message3,
@@ -747,7 +744,7 @@ impl PartyR<Msg3verifier> {
         statkey_i_bytes.copy_from_slice(&i_public_static_bytes[..32]);
         let i_public_static = x25519_dalek_ng::PublicKey::from(statkey_i_bytes);
             
-        let shared_secret_2 = self.0.r_ecdh_secret.diffie_hellman(&i_public_static);
+        let shared_secret_2 = self.0.priv_ephemeral_r.diffie_hellman(&i_public_static);
     
 
         let id_cred_i = cose::build_id_cred_x(&self.0.kid)?;

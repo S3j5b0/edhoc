@@ -30,7 +30,7 @@ pub const CONNECTION_IDENTIFIER_LENGTH: usize = 8;
 pub struct Message1 {
     pub method: u8,
     pub suite: u8,
-    pub x_i: Vec<u8>,
+    pub pub_ephemeral_i: Vec<u8>,
     pub c_i : Vec<u8>,
     pub ead_1: Option<Vec<u8>>,
 }
@@ -47,7 +47,7 @@ pub fn serialize_message_1(msg: &Message1) -> Result<Vec<u8>> {
             let raw_msg  = (
                 msg.method,
                 msg.suite,
-                Bytes::new(&msg.x_i),
+                Bytes::new(&msg.pub_ephemeral_i),
                 Bytes::new(&msg.c_i),
                 Bytes::new(&ead_cbor),
             );
@@ -59,7 +59,7 @@ pub fn serialize_message_1(msg: &Message1) -> Result<Vec<u8>> {
         let raw_msg  = (
             msg.method,
             msg.suite,
-            Bytes::new(&msg.x_i),
+            Bytes::new(&msg.pub_ephemeral_i),
             Bytes::new(&msg.c_i),
         );
         Ok(cbor::encode_sequence(raw_msg)?)}
@@ -80,7 +80,7 @@ pub fn deserialize_message_1(msg: &[u8]) -> Result<Message1> {
                 Ok(Message1 {
                     method: raw_msg.0,
                     suite: raw_msg.1,
-                    x_i: raw_msg.2.into_vec(),
+                    pub_ephemeral_i: raw_msg.2.into_vec(),
                     c_i : raw_msg.3.into_vec(),
                     ead_1: Some(ead_1),
                 })
@@ -92,7 +92,7 @@ pub fn deserialize_message_1(msg: &[u8]) -> Result<Message1> {
                 Ok(Message1 {
                     method: raw_msg.0,
                     suite: raw_msg.1,
-                    x_i: raw_msg.2.into_vec(),
+                    pub_ephemeral_i: raw_msg.2.into_vec(),
                     c_i : raw_msg.3.into_vec(),
                     ead_1: None,
                 })
@@ -626,7 +626,7 @@ fn test_serialize_message_1() {
     let msg1 = Message1 {
         method: 3,
         suite: 0,
-        x_i : I_EPHEMERAL_PK.to_vec(),
+        pub_ephemeral_i : I_EPHEMERAL_PK.to_vec(),
         c_i : [12].to_vec(),
         ead_1 : None,
     };
