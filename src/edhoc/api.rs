@@ -147,18 +147,18 @@ impl PartyI<Msg2Receiver> {
                                             &prk_2e_hkdf, 
                                             &th_2, 
                                             "KEYSTREAM_2",
-                                            &[],
+                                            b"",
                                             msg_2.ciphertext_2.len(), 
                                             )?;
 
 
         let decryptedlaintext = util::xor(&keystream2, &msg_2.ciphertext_2)?;
 
-        let (r_kid,mac_2,ead_2 ) = util::extract_plaintext(decryptedlaintext)?;
+        let (kid_r,mac_2,ead_2 ) = util::extract_plaintext(decryptedlaintext)?;
 
 
         Ok((
-            r_kid.clone(),
+            kid_r.clone(),
             c_r_cpy,
             ead_2.clone(),
             PartyI(Msg2Verifier {
@@ -171,7 +171,7 @@ impl PartyI<Msg2Receiver> {
                 ead_2,
                 prk_2e,
                 th_2,
-                r_kid,
+                kid_r,
                 pub_ephemeral_r,
 
 
@@ -205,7 +205,7 @@ pub struct Msg2Verifier {
     ead_2 : Option<Vec<u8>>,
     prk_2e : Vec<u8>,
     th_2: Vec<u8>,
-    r_kid: Vec<u8>,
+    kid_r: Vec<u8>,
     pub_ephemeral_r : PublicKey,
 }
 
@@ -219,9 +219,9 @@ impl PartyI<Msg2Verifier> {
     ) -> Result<PartyI<Msg3Sender>, OwnError> {
 
         // build cred_x and id_cred_x (for responder party)
-        let id_cred_r = cose::build_id_cred_x(&self.0.r_kid)?;
+        let id_cred_r = cose::build_id_cred_x(&self.0.kid_r)?;
 
-        let cred_r = cose::serialize_cred_x(pub_static_r_bytes,&self.0.r_kid )?; 
+        let cred_r = cose::serialize_cred_x(pub_static_r_bytes,&self.0.kid_r )?; 
         // Generating static public key of initiator
         let mut buf = [0; 32];
         buf.copy_from_slice(&pub_static_r_bytes[..32]);
@@ -544,7 +544,7 @@ impl PartyR<Msg1Receiver> {
             pub_static_r: self.0.pub_static_r,
             shared_secret_0,
             shared_secret_1,
-            r_kid: self.0.kid,
+            kid_r: self.0.kid,
             msg_1_seq,
         }),
         msg_1.c_i,
@@ -574,7 +574,7 @@ pub struct Msg2Sender {
     pub_static_r : PublicKey,
     shared_secret_0: SharedSecret,
     shared_secret_1: SharedSecret,
-    r_kid: Vec<u8>,
+    kid_r: Vec<u8>,
     msg_1_seq: Vec<u8>,
 }
 
@@ -586,10 +586,10 @@ impl PartyR<Msg2Sender> {
         ead_2 : Option<Vec<u8>>,
     ) -> Result<(Vec<u8>, PartyR<Msg3Receiver>),OwnOrPeerError> {
             // first we need to build the id_cred_r from the kid
-            let id_cred_r = cose::build_id_cred_x(&self.0.r_kid)?;
+            let id_cred_r = cose::build_id_cred_x(&self.0.kid_r)?;
 
             // We now build the cred_x using the public key, and kid value
-            let cred_r = cose::serialize_cred_x(&self.0.pub_static_r.to_bytes(),&self.0.r_kid )?; 
+            let cred_r = cose::serialize_cred_x(&self.0.pub_static_r.to_bytes(),&self.0.kid_r )?; 
 
             let th_2 = util::compute_th_2(self.0.msg_1_seq, &c_r, self.0.pub_ephemeral_r)?;
 
@@ -608,7 +608,7 @@ impl PartyR<Msg2Sender> {
 
 
             
-            let plaintext_encoded = util::build_plaintext(&self.0.r_kid, &mac_2,ead_2)?;
+            let plaintext_encoded = util::build_plaintext(&self.0.kid_r, &mac_2,ead_2)?;
 
             let keystream2 = util::edhoc_kdf(
                 &prk_2e_hkdf, 
@@ -630,6 +630,7 @@ impl PartyR<Msg2Sender> {
 
 
             let msg2_seq = util::serialize_message_2(&msg_2)?;
+
 
             Ok((msg2_seq, 
                 PartyR(Msg3Receiver {
@@ -695,19 +696,19 @@ impl PartyR<Msg3Receiver> {
             &msg_3.ciphertext, 
             &ad)?;
         
-        let (r_kid, mac3,ead_3) = util::extract_plaintext(p)?;
+        let (kid_r, mac3,ead_3) = util::extract_plaintext(p)?;
 
         Ok((PartyR(Msg3verifier{
             priv_ephemeral_r : self.0.priv_ephemeral_r,
             prk_3e2m_hkdf : self.0.prk_3e2m_hkdf,
             prk_3e2m : self.0.prk_3e2m,
             msg_3,
-            kid : r_kid.clone(),
+            kid : kid_r.clone(),
             mac3,
             ead_3 : ead_3.clone(),
             th_3,
         }),
-        r_kid,
+        kid_r,
         ead_3))
     }
 

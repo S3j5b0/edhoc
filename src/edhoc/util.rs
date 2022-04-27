@@ -141,11 +141,11 @@ pub struct Message2 {
 
 /// Serializes EDHOC `message_2`.
 pub fn serialize_message_2(msg: &Message2) -> Result<Vec<u8>> {
-    let c_r_and_ciphertext = [msg.ephemeral_key_r.clone(), msg.ciphertext_2.clone()].concat();
+    let pubk_and_ciphertext = [msg.ephemeral_key_r.clone(), msg.ciphertext_2.clone()].concat();
 
 
 let encoded = (
-    Bytes::new(&c_r_and_ciphertext),
+    Bytes::new(&pubk_and_ciphertext),
     Bytes::new(&msg.c_r),
 
 
@@ -364,62 +364,7 @@ pub fn create_mac_with_kdf(
 }
 
 
-/// Generic acces to hkdf-expand Function for creating keystream2 and k_3 and IV_3
-///
-/// # Arguments
-/// * `PRK` - the prk used to create tag
-/// * `maclength`  mac length given by cipher suite
-/// * `th` transcript hash (SAME th as in mac_2)
-/// * identifier: string that identifies the value
-/// 
 
-pub fn generic_expand(
-    prk: Hkdf<Sha256>,
-    th: &[u8],
-    length : usize,
-    identifier : &str,
-    is_bits :bool, 
-) -> Result<Vec<u8>> {
-
-    // For the Expand step, take the COSE_KDF_Context structure as info
-    let info = (
-        th,
-        identifier,
-        "",
-    );
-   let info_encoded =  cbor::encode_sequence(info)?;
-
-    // Expand the PRK to the desired length output keying material (OKM)
-
-    let k = if is_bits {
-        8
-      } else {
-        1
-      };
-    let mut okm = vec![0; length / k] ;
-    
-    prk.expand(&info_encoded, &mut okm)?;
-    Ok(okm)
-}
-pub fn tryexpand(
-    prk: Hkdf<Sha256>,
-    info1: &[u8],
-    plain_text_length : usize,
-) -> Result<Vec<u8>> {
-
-    // For the Expand step, take the COSE_KDF_Context structure as info
-    let info = (
-        info1,
-        "",
-    );
-   let info_encoded =  cbor::encode_sequence(info)?;
-
-    // Expand the PRK to the desired length output keying material (OKM)
-    let mut okm = vec![0; plain_text_length / 8];
-
-    prk.expand(&info_encoded, &mut okm)?;
-    Ok(okm)
-}
 pub fn extract_expand(
     ikm: &[u8],
     salt: &[u8],
@@ -550,6 +495,7 @@ pub fn build_plaintext(kid: &[u8], mac: &[u8],ead :Option<Vec<u8>>) -> Result<Ve
 pub fn extract_plaintext(plaintext: Vec<u8>) -> Result<(Vec<u8>, Vec<u8>, Option<Vec<u8>>)> {
 
     let mut temp = Vec::with_capacity(plaintext.len() + 1);
+
     
     match cbor::decode_sequence(&plaintext, 2, &mut temp) {
         Ok(tup) => {

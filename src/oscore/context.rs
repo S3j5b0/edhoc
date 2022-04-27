@@ -85,7 +85,7 @@ impl SecurityContext {
         let common_iv_vec = util::hkdf(
             &master_secret,
             &master_salt,
-            &util::build_info(&[], "IV", 13)?,
+            &util::build_info(b"", "IV", 13)?,
             13,
         )?;
         let mut sender_key = [0; util::KEY_LEN];

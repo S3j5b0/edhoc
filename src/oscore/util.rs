@@ -62,7 +62,7 @@ pub fn build_aad_array(
         [10],
         Bytes::new(request_kid),
         Bytes::new(request_piv),
-        Bytes::new(&[]),
+        Bytes::new(b""),
     );
     // Return the CBOR encoded version of that
     Ok(cbor::encode(arr)?)
@@ -353,7 +353,7 @@ mod tests {
         let i_recipient = build_info(&SERVER_ID, "Key", 16).unwrap();
         assert_eq!(&INFO_SERVER_KEY, &i_recipient[..]);
 
-        let i_iv = build_info(&[], "IV", 13).unwrap();
+        let i_iv = build_info(b"", "IV", 13).unwrap();
         assert_eq!(&INFO_COMMON_IV, &i_iv[..]);
     }
 
