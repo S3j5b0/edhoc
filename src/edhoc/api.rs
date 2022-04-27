@@ -334,14 +334,14 @@ impl PartyI<Msg3Sender> {
 
         // Constructing ciphertext:
         let ciphertext_3 = util::aead_seal(&k_3, &iv_3, &p, &ad)?;
-        let ciphertext_3_cpy = ciphertext_3.clone();
+        let th_4 = util::compute_th_4(&th_3, &ciphertext_3)?;
+
         let msg_3 = Message3 {ciphertext: ciphertext_3};
         let msg_3_seq = util::serialize_message_3(&msg_3)?;
 
 
 
         // now computing the values needed for sck and rck
-        let th_4 = util::compute_th_4(&th_3, &ciphertext_3_cpy)?;
 
 
         let master_secret = util::edhoc_exporter(

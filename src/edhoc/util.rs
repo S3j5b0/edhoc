@@ -141,8 +141,7 @@ pub struct Message2 {
 
 /// Serializes EDHOC `message_2`.
 pub fn serialize_message_2(msg: &Message2) -> Result<Vec<u8>> {
-    let pubk_and_ciphertext = [msg.ephemeral_key_r.clone(), msg.ciphertext_2.clone()].concat();
-
+    let pubk_and_ciphertext = [&msg.ephemeral_key_r[..], &msg.ciphertext_2[..]].concat();
 
 let encoded = (
     Bytes::new(&pubk_and_ciphertext),
