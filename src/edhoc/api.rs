@@ -28,10 +28,10 @@ impl PartyIState for Msg4ReceiveVerify {}
 pub struct Msg1Sender {
     ead_1: Option<Vec<u8>>,
     c_i : Vec<u8>,
-    priv_ephemeral_i: StaticSecret,
-    pub_ephemeral_i: PublicKey,
-    pub_static_i: PublicKey,
-    priv_static_i: StaticSecret,
+    priv_ek_i: StaticSecret,
+    pub_ek_i: PublicKey,
+    pub_st_i: PublicKey,
+    priv_st_i: StaticSecret,
     kid: Vec<u8>,
 }
 
@@ -50,24 +50,24 @@ impl PartyI<Msg1Sender> {
         c_i: Vec<u8>,
         ead_1: Option<Vec<u8>>,
         ephemeral_secret: [u8; 32],
-        priv_static_i: StaticSecret,
-        pub_static_i: PublicKey,
+        priv_st_i: StaticSecret,
+        pub_st_i: PublicKey,
         kid: Vec<u8>,
     ) -> PartyI<Msg1Sender> {
 
-        let priv_ephemeral_i = StaticSecret::from(ephemeral_secret);
+        let priv_ek_i = StaticSecret::from(ephemeral_secret);
         // and from that build the corresponding public key
-        let pub_ephemeral_i = PublicKey::from(&priv_ephemeral_i);
+        let pub_ek_i = PublicKey::from(&priv_ek_i);
 
 
 
          PartyI(Msg1Sender {
             ead_1,
             c_i,
-            priv_ephemeral_i,
-            pub_ephemeral_i,
-            pub_static_i,
-            priv_static_i,
+            priv_ek_i,
+            pub_ek_i,
+            pub_st_i,
+            priv_st_i,
             kid,
         })
     }
@@ -84,7 +84,7 @@ impl PartyI<Msg1Sender> {
         let msg_1 = Message1 {
             method,
             suite: suites,
-            pub_ephemeral_i: self.0.pub_ephemeral_i.as_bytes().to_vec(), // sending PK as vector
+            pub_ek_i: self.0.pub_ek_i.as_bytes().to_vec(), // sending PK as vector
             c_i : self.0.c_i,
             ead_1 : self.0.ead_1,
         };
@@ -95,9 +95,9 @@ impl PartyI<Msg1Sender> {
         Ok((
             msg_1_bytes,
             PartyI(Msg2Receiver {
-                priv_ephemeral_i: self.0.priv_ephemeral_i,
-                pub_static_i: self.0.pub_static_i,
-                priv_static_i: self.0.priv_static_i,
+                priv_ek_i: self.0.priv_ek_i,
+                pub_st_i: self.0.pub_st_i,
+                priv_st_i: self.0.priv_st_i,
                 kid: self.0.kid,
                 msg_1_seq,
             }),
@@ -106,9 +106,9 @@ impl PartyI<Msg1Sender> {
 }
 /// Contains the state to receive the second message.
 pub struct Msg2Receiver {
-    priv_ephemeral_i: StaticSecret,
-    pub_static_i : PublicKey,
-    priv_static_i : StaticSecret,
+    priv_ek_i: StaticSecret,
+    pub_st_i : PublicKey,
+    priv_st_i : StaticSecret,
     kid: Vec<u8>,
     msg_1_seq: Vec<u8>,
 }
@@ -134,7 +134,7 @@ impl PartyI<Msg2Receiver> {
         // Constructing shared secret 0 for initiator 
 
 
-       let shared_secret_0 = self.0.priv_ephemeral_i.diffie_hellman(&pub_ephemeral_r);
+       let shared_secret_0 = self.0.priv_ek_i.diffie_hellman(&pub_ephemeral_r);
         
 
         // reconstructing keystream2
@@ -162,9 +162,9 @@ impl PartyI<Msg2Receiver> {
             c_r_cpy,
             ead_2.clone(),
             PartyI(Msg2Verifier {
-                priv_ephemeral_i : self.0.priv_ephemeral_i,
-                priv_static_i: self.0.priv_static_i,
-                pub_static_i : self.0.pub_static_i,
+                priv_ek_i : self.0.priv_ek_i,
+                priv_st_i: self.0.priv_st_i,
+                pub_st_i : self.0.pub_st_i,
                 kid: self.0.kid,
                 msg_2,
                 mac_2,
@@ -196,9 +196,9 @@ impl PartyI<Msg2Receiver> {
 
 /// Contains the state to verify the second message.
 pub struct Msg2Verifier {
-    priv_ephemeral_i : StaticSecret,
-    priv_static_i : StaticSecret,
-    pub_static_i : PublicKey,
+    priv_ek_i : StaticSecret,
+    priv_st_i : StaticSecret,
+    pub_st_i : PublicKey,
     kid: Vec<u8>,
     msg_2: Message2,
     mac_2: Vec<u8>,
@@ -229,7 +229,7 @@ impl PartyI<Msg2Verifier> {
 
         // Generating shared secret 1 for initiator
 
-        let shared_secret_1 = self.0.priv_ephemeral_i.diffie_hellman(&pub_static_r);
+        let shared_secret_1 = self.0.priv_ek_i.diffie_hellman(&pub_static_r);
 
         // generating prk_3
 
@@ -251,8 +251,8 @@ impl PartyI<Msg2Verifier> {
         
 
         Ok(PartyI(Msg3Sender{
-            priv_static_i : self.0.priv_static_i,
-            pub_static_i : self.0.pub_static_i,
+            priv_st_i : self.0.priv_st_i,
+            pub_st_i : self.0.pub_st_i,
             pub_ephemeral_r: self.0.pub_ephemeral_r,
             i_kid : self.0.kid,
             msg_2 : self.0.msg_2,
@@ -265,8 +265,8 @@ impl PartyI<Msg2Verifier> {
 
 /// Contains the state to build the third message.
 pub struct Msg3Sender {
-    priv_static_i : StaticSecret,
-    pub_static_i : PublicKey,
+    priv_st_i : StaticSecret,
+    pub_st_i : PublicKey,
     pub_ephemeral_r : PublicKey, 
     i_kid: Vec<u8>,
     msg_2: Message2,
@@ -289,9 +289,9 @@ impl PartyI<Msg3Sender> {
         // Build the COSE header map identifying the public authentication key
         let id_cred_i = cose::build_id_cred_x(&self.0.i_kid)?;
         // Build the COSE_Key containing our public authentication key
-        let cred_i = cose::serialize_cred_x(&self.0.pub_static_i.to_bytes(), &self.0.i_kid)?;
+        let cred_i = cose::serialize_cred_x(&self.0.pub_st_i.to_bytes(), &self.0.i_kid)?;
 
-        let shared_secret_2 = self.0.priv_static_i.diffie_hellman(&self.0.pub_ephemeral_r);
+        let shared_secret_2 = self.0.priv_st_i.diffie_hellman(&self.0.pub_ephemeral_r);
         
         
         // transcript hash 3
@@ -528,13 +528,13 @@ impl PartyR<Msg1Receiver> {
 
         // Use U's public key to generate the ephemeral shared secret
         let mut ed_key_bytes = [0; 32];
-        ed_key_bytes.copy_from_slice(&msg_1.pub_ephemeral_i[..32]);
-        let pub_ephemeral_i = x25519_dalek_ng::PublicKey::from(ed_key_bytes);
+        ed_key_bytes.copy_from_slice(&msg_1.pub_ek_i[..32]);
+        let pub_ek_i = x25519_dalek_ng::PublicKey::from(ed_key_bytes);
 
         // generating shared secret at responder
-        let shared_secret_0 = self.0.priv_ephemeral_r.diffie_hellman(&pub_ephemeral_i);
+        let shared_secret_0 = self.0.priv_ephemeral_r.diffie_hellman(&pub_ek_i);
         
-        let shared_secret_1 = self.0.priv_static_r.diffie_hellman(&pub_ephemeral_i);
+        let shared_secret_1 = self.0.priv_static_r.diffie_hellman(&pub_ek_i);
 
 
 
