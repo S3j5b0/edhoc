@@ -8,7 +8,6 @@ readme = "README.md"
 
 [lib]
 doctest = false
-bench = false
 
 [dependencies]
 serde = { version = "1.0.97", default-features = false, features = ["derive", "alloc"] }
@@ -44,6 +43,3 @@ std = [
 # This disables replay protection, which is necessary for benchmarking
 no_replay = []
 
-[[bench]]
-name = "bench"
-harness = false

@@ -12,8 +12,8 @@ use x25519_dalek_ng::{PublicKey,StaticSecret};
 use rand_core::{OsRng};
 
 
-const SUITE_I: u8 = 3;
-const METHOD_TYPE_I : u8 = 0;
+const SUITE_I: u8 = 0;
+const METHOD_TYPE_I : u8 = 3;
 
 
 fn main() {

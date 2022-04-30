@@ -876,3 +876,37 @@ impl PartyR<Msg4Sender> {
         Ok(msg4_seq)
     }
 }
+
+
+
+#[cfg(test)]
+
+mod tests {
+
+use super::super::test_vectors::*;
+use super::*;
+#[test]
+
+fn message1() {
+    let mut buf = [0; 32];
+    buf.copy_from_slice(&I_STATIC_SK);
+    let i_static_sk = StaticSecret::from(buf);
+    let pub_st_i = PublicKey::from(&i_static_sk);    
+
+    assert_eq!(pub_st_i.as_bytes(),&I_STATIC_PK );
+
+    let msg1_sender = PartyI::new(
+        C_I.to_vec(),
+        None,
+        I_EPHEMEREAL_SK,
+        i_static_sk,
+        pub_st_i,
+        KID_I.to_vec(),
+    );
+    let (msg1_bytes, msg2receiver) = msg1_sender.generate_message_1(METHOD_TYPE_I, SUITE_I).unwrap();
+
+
+    assert_eq!(msg1_bytes,MSG1.to_vec());
+}
+
+}

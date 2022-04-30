@@ -382,10 +382,6 @@ pub fn extract_expand(
 // Xor function, for message 2
 pub fn xor(a : &[u8], b:&[u8]) -> Result<Vec<u8>>{
 
-    if a.len() != b.len(){
-        panic!("Attempting to xor vec's of unequal length");
-    }
-
     let c =  a.iter()
       .zip(b.iter())
       .map(|(&x1, &x2)| x1 ^ x2)
@@ -565,21 +561,7 @@ use super::super::test_vectors::*;
 use super::*;
 #[test]
 
-fn test_serialize_message_1() {
 
-
-    let msg1 = Message1 {
-        method: 3,
-        suite: 0,
-        pub_ek_i : I_EPHEMERAL_PK.to_vec(),
-        c_i : [12].to_vec(),
-        ead_1 : None,
-    };
-    
-    let serial = serialize_message_1(&msg1).unwrap();
-
-    assert_eq!(serial,MSG1.to_vec());
-}
 
 #[test]
 
