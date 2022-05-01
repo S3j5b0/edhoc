@@ -20,8 +20,6 @@ aes = "0.7.5"
 ccm = "0.4.4"
 hkdf = "0.8.0"
 digest = "0.8.1"
-rand = "*"
-coap-lite = { version = "0.3.0", default-features = false }
 
 
 
@@ -32,13 +30,10 @@ std = [
     "serde_cbor/std",
     "serde_bytes/std",
     "x25519-dalek-ng/std",
-    # Add this back in once it doesn't cause problems with thread_rng
-    # "ed25519-dalek/std",
     "sha2/std",
     "ccm/std",
     "hkdf/std",
     "digest/std",
-    "coap-lite/std",
 ]
 # This disables replay protection, which is necessary for benchmarking
 no_replay = []

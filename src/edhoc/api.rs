@@ -807,8 +807,6 @@ impl PartyR<Msg3verifier> {
                     "RK0", 
                     32,  
                     )?;
-        
-
 
         Ok((PartyR(Msg4Sender{
             prk_4x3m_hkdf,

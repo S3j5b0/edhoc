@@ -5,11 +5,10 @@ use edhoc::edhoc::{
     PartyI, PartyR,
     
 };
-use rand::{rngs::StdRng, Rng,SeedableRng};
 
 use x25519_dalek_ng::{PublicKey,StaticSecret};
 
-use rand_core::{OsRng};
+use rand_core::{OsRng,RngCore};
 
 
 const SUITE_I: u8 = 0;
@@ -29,8 +28,8 @@ fn main() {
     // Party U ----------------------------------------------------------------
     // "Generate" an ECDH key pair (this is static, but MUST be ephemeral)
     // The ECDH private key used by U
-    let mut r : StdRng = StdRng::from_entropy();
-    let i_priv = r.gen::<[u8;32]>();
+    let mut i_priv = [0u8; 32];
+    OsRng.fill_bytes(&mut i_priv);
     
     // Choose a connection identifier
     let deveui = [0x1,1,2,3,2,4,5,7].to_vec();
@@ -60,8 +59,9 @@ fn main() {
 
     // create keying material
 
-    let mut r2 : StdRng = StdRng::from_entropy();
-    let r_priv = r2.gen::<[u8;32]>();
+    let mut r_priv = [0u8;32];
+
+    OsRng.fill_bytes(&mut r_priv);
 
     let msg1_receiver =
        PartyR::new(r_priv, r_static_priv, r_static_pub, r_kid);

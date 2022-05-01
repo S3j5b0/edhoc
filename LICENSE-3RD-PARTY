@@ -83,7 +83,6 @@ applies to:
 - ccm
 - hkdf
 - digest
-- coap-lite
 - criterion
 -------------------------------------------------------------------------------
                                  Apache License
