@@ -2,10 +2,8 @@
 <!-- cargo-sync-readme start -->
 
 An experimental
-[OSCORE](https://tools.ietf.org/html/rfc8613)
-implementation with
 [EDHOC](https://datatracker.ietf.org/doc/draft-ietf-lake-edhoc)
-key exchange, intended for embedded devices.
+key exchange implementation, intended for embedded devices.
 
 This EDHOC implementation is a update on the already existing [implementation](https://github.com/martindisch/oscore). The protocol is updated to comply with [draft-ietf-lake-edhoc-12](https://datatracker.ietf.org/doc/draft-ietf-lake-edhoc/). 
 
