@@ -9,6 +9,8 @@ This EDHOC implementation is a update on the already existing [implementation](h
 
 <!-- cargo-sync-readme end -->
 
+Be aware that this implementation is experimental, and only implement the STATIC-STATIC autentication mode, and cipher suite 0 of EDHOC.
+
 ## License
 Licensed under either of
 
