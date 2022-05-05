@@ -33,19 +33,24 @@ pub fn serialize_cred_x(x: &[u8], kid : &[u8]) -> Result<Vec<u8>> {
     // what we want to have as the actual bytes for the COSE_Key.
     // (kty key, kty value, crv key, crv value,
     //  x-coordinate key, x-coordinate value)
+
+
+    // cred_x is a naked cose key, and thus dressed as a ccs by prefixing (page 15 edhoc9)
+    let mut prefix = vec![0xA1, 0x08, 0xA1, 0x01];
+
     let raw_key = (1,1,2, 2, -1, kid[0], -2, Bytes::new(x));
     // Get the byte representation of it
     let mut bytes = cbor::encode(raw_key)?;
     // This is a CBOR array, but we want a map
     cbor::array_to_map(&mut bytes)?;
-
-    Ok(bytes)
+    prefix.extend(bytes);
+    Ok(prefix)
 }
 
 
 /// Returns the COSE header map for the given `kid`.
 pub fn build_id_cred_x(kid: &[u8]) -> Result<Vec<u8>> {
-    let map = cbor::build_map(kid)?;
+    let map = cbor::build_map_single(kid)?;
     Ok(map)
 
 }
@@ -61,3 +66,7 @@ pub fn build_ad(th_i: &[u8]) -> Result<Vec<u8>> {
 
     Ok(ad_arr)
 }
+
+
+
+

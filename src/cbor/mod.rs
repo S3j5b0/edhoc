@@ -5,6 +5,8 @@ use serde::ser::{Serialize, Serializer, SerializeMap};
 #[cfg_attr(tarpaulin, skip)]
 mod error;
 pub use error::CborError;
+use alloc::collections::BTreeMap;
+
 
 /// The result type for the `cbor` module.
 pub type Result<T> = core::result::Result<T, CborError>;
@@ -27,7 +29,7 @@ impl Serialize for IdCred {
         map.end()
     }
 }
-pub fn build_map(kid: &[u8]) -> Result<Vec<u8>> {
+pub fn build_map_single(kid: &[u8]) -> Result<Vec<u8>> {
     match serde_cbor::to_vec(&IdCred(kid[0])) {
         Ok(b ) => Ok(b),
         _ => Err(CborError::TooManyItems)
@@ -204,4 +206,12 @@ mod tests {
         assert!(map_to_array(&mut map_12).is_err());
         assert!(array_to_map(&mut arr_24).is_err());
     }
+
+
+ 
+    
 }
+
+
+
+

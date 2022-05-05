@@ -522,10 +522,9 @@ impl PartyR<Msg1Receiver> {
 
         // Verify that the selected suite is supported
         
-        if msg_1.suite != 3 {
+        if msg_1.suite != 0 {
             return Err(Error::UnsupportedSuite.into())
         }
-
         // Use U's public key to generate the ephemeral shared secret
         let mut ed_key_bytes = [0; 32];
         ed_key_bytes.copy_from_slice(&msg_1.pub_ek_i[..32]);
@@ -625,9 +624,6 @@ impl PartyR<Msg2Sender> {
                 c_r,
                 ciphertext_2,
             };
-
-
-
 
             let msg2_seq = util::serialize_message_2(&msg_2)?;
 
@@ -861,9 +857,6 @@ impl PartyR<Msg4Sender> {
             None => "".as_bytes(),
         };
 
-
-
-
         let ciphertext_4 = util::aead_seal(&k_4, &iv_4, p, &ad)?;
 
         let msg4 = Message4 {
@@ -905,6 +898,16 @@ fn message1() {
 
 
     assert_eq!(msg1_bytes,MSG1.to_vec());
+}
+fn message4() {
+/*
+    let (_,prk_4x3m_hkdf) = util::extract_prk(Some(&PRK3EM), &SHARED_SECRET_2).unwrap();
+    let msg4sender = PartyR<Msg4Sender{
+     prk_4x3m_hkdf,
+     th_4 : TH_2.to_vec(),
+ }>;
+
+ let msg4_bytes = msg4sender.generate_message_4();*/
 }
 
 }

@@ -660,4 +660,13 @@ fn test_ead() {
 
     assert_eq!(ead,ead_deser);
 }
+#[test]
+
+fn cipher3() {
+    let cipher3 = aead_seal(&K_3, &IV_3, &P_3, &A_3).unwrap();
+
+
+    assert_eq!(cipher3,CIPHERTEXT_3.to_vec());
+}
+
 }
