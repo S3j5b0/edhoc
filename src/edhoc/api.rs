@@ -341,7 +341,7 @@ impl PartyI<Msg3Sender> {
 
 
 
-        // now computing the values needed for sck and rck
+        // now computing the master secret and master salt
 
 
         let master_secret = util::edhoc_exporter(
@@ -382,14 +382,14 @@ pub struct Msg4ReceiveVerify {
     ///
     /// # Arguments
     /// * `msg4_seq` msg 4 as bytes
-    /// Outputs (sck,rck,rk,ead)
+    /// Outputs (master_secret, master_salt,ead_4))
 
 
 impl PartyI<Msg4ReceiveVerify> {
     pub fn handle_message_4_ead(
         self,
         msg4_seq : Vec<u8>,
-    ) -> Result<(Vec<u8>, Vec<u8>,Vec<u8>,Vec<u8>), OwnOrPeerError> {
+    ) -> Result<(Vec<u8>, Vec<u8>,Vec<u8>), OwnOrPeerError> {
 
 
         util::fail_on_error_message(&msg4_seq)?;
@@ -420,38 +420,20 @@ impl PartyI<Msg4ReceiveVerify> {
         }
 
 
-        let sck = util::extract_expand(
-            &self.0.master_secret,
-            &self.0.master_salt, 
-            "DOWNLINK", 
-            32, 
-            )?;
-
-        let rck = util::extract_expand(
-            &self.0.master_secret,
-            &self.0.master_salt,
-            "UPLINK", 
-            32,  
-            )?;
-
-        let rk = util::extract_expand(
-            &self.0.master_secret,
-            &self.0.master_salt,
-            "RK0", 
-            32,  
-            )?;
-
     
 
-        Ok((sck,rck,rk,ead))
+        Ok((self.0.master_secret,self.0.master_salt,ead))
     }
+
+
+    /// Function wrapping handle_message_4_ead, but not using the ead
 
     pub fn handle_message_4(
         self,
         msg4_seq : Vec<u8>,
-    ) -> Result<(Vec<u8>, Vec<u8>,Vec<u8>), OwnOrPeerError> {
-        let (sck,rck,rk,_) = self.handle_message_4_ead(msg4_seq)?;
-        Ok((sck,rck,rk))
+    ) -> Result<(Vec<u8>, Vec<u8>), OwnOrPeerError> {
+        let (master_secret,master_salt,_) = self.handle_message_4_ead(msg4_seq)?;
+        Ok((master_secret,master_salt))
     }
 
 
@@ -736,7 +718,7 @@ impl PartyR<Msg3verifier> {
     pub fn verify_message_3(
         self,
         i_public_static_bytes: &[u8],
-    ) -> Result<(PartyR<Msg4Sender>, Vec<u8>, Vec<u8>,Vec<u8>), OwnOrPeerError> {
+    ) -> Result<(PartyR<Msg4Sender>, Vec<u8>, Vec<u8>), OwnOrPeerError> {
         let mut statkey_i_bytes = [0; 32];
         statkey_i_bytes.copy_from_slice(&i_public_static_bytes[..32]);
         let i_public_static = x25519_dalek_ng::PublicKey::from(statkey_i_bytes);
@@ -783,34 +765,12 @@ impl PartyR<Msg3verifier> {
                     
                 )?;
         
-        let sck = util::extract_expand(
-                    &master_secret,
-                    &master_salt, 
-                    "DOWNLINK", 
-                    32, 
-                    )?;
-        
-       let rck = util::extract_expand(
-                    &master_secret,
-                    &master_salt, 
-                    "UPLINK", 
-                    32,  
-                    )?;
-        
-        let rk = util::extract_expand(
-                    &master_secret,
-                    &master_salt, 
-                    "RK0", 
-                    32,  
-                    )?;
-
         Ok((PartyR(Msg4Sender{
             prk_4x3m_hkdf,
             th_4,
             }),
-        sck,
-        rck,
-        rk))
+            master_secret,
+            master_salt))
 
     }
 

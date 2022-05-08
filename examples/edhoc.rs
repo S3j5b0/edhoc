@@ -127,7 +127,7 @@ fn main() {
         Ok(val) => val,
     };
 
-    let (msg4_sender, as_sck, as_rck, as_rk) = match msg3verifier.verify_message_3(i_static_pub.as_bytes())
+    let (msg4_sender, master_secret_r, master_salt_r) = match msg3verifier.verify_message_3(i_static_pub.as_bytes())
     {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Error during  {}", s)
@@ -160,7 +160,7 @@ fn main() {
     /// Initiator receiving and handling message 4, and generate  sck and rck. Then all is done
     ///////////////////////////////////////////////////////////////////// */
 
-    let (ed_sck, ed_rck,ed_rk) =
+    let (master_secret_i,master_salt_i) =
     match msg4_receiver_verifier.handle_message_4(msg4_bytes) {
         Err(OwnOrPeerError::PeerError(s)) => {
             panic!("Received error msg: {}", s)
@@ -173,14 +173,13 @@ fn main() {
 
     println!("Initiator completed handshake and made chan keys");
 
-    println!("sck {:?}", ed_sck);
-    println!("rck {:?}", ed_rck);
-    println!("rk ed {:?}", ed_rk);
+    println!("initiatir secret {:?}", master_secret_i);
+    println!("initiator salt {:?}", master_salt_i);
     println!("Responder completed handshake and made chan keys");
 
-    println!("sck {:?}", as_sck);
-    println!("rck {:?}", as_rck);
-    println!("as rk {:?}", as_rk);
+    println!("Responder secret {:?}", master_secret_r);
+    println!("rck {:?}", master_salt_i);
+    
 
 }
 
