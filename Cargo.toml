@@ -5,6 +5,11 @@ authors = ["Ask Sejsbo <asse@itu.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 readme = "README.md"
+homepage = "https://github.com/S3j5b0/edhoc"
+documentation  = "https://github.com/S3j5b0/edhoc"
+description = "Experimental EDHOC implementation with fourth optional message"
+
+
 
 [lib]
 doctest = false
